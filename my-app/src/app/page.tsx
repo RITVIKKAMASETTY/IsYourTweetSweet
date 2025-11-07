@@ -281,6 +281,7 @@ const FALLBACK_TWEETS: Tweet[] = [
   }
 ];
 
+// Get API key from environment variable - make sure NEXT_PUBLIC_GROQ_API_KEY is set
 const GROQ_API_KEY = process.env.NEXTGRQ || "";
 
 export default function TweetsDashboard() {
@@ -457,30 +458,37 @@ export default function TweetsDashboard() {
 }`;
         }
 
-       
-       //sisisisnisn
-       
-       const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-  method: "POST",
-  headers: {
-    "Authorization": `Bearer ${GROQ_API_KEY}`,
-    "Content-Type": "application/json"
-  },
-  body: JSON.stringify({
-    model: "llama-3.1-70b-versatile",
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: `Analyze this tweet: "${text}"` }
-    ],
-    temperature: 0.7,
-    max_tokens: 600,
-    response_format: { type: "json_object" }
-  })
-});
+        const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${GROQ_API_KEY}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            model: "llama-3.1-70b-versatile",
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: `Analyze this tweet: "${text}"` }
+            ],
+            temperature: 0.7,
+            max_tokens: 600,
+            response_format: { type: "json_object" }
+          })
+        });
 
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          console.error("Groq API Error:", response.status, errorData);
+          throw new Error(`Groq API failed: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
+        }
 
         const data = await response.json();
-        const content = data.choices[0]?.message?.content || "{}";
+        
+        if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+          throw new Error("Invalid response from Groq API");
+        }
+        
+        const content = data.choices[0].message.content || "{}";
         
         try {
           const parsed = JSON.parse(content);
@@ -624,7 +632,7 @@ export default function TweetsDashboard() {
             Tweet Intelligence
           </h1>
           <p className="text-gray-400 mb-8">
-            AI-powered tweet analysis with Groq
+            AI-powered tweet analysis with NLP Models
           </p>
           <button
             onClick={() => signIn("twitter")}
@@ -723,7 +731,7 @@ export default function TweetsDashboard() {
           <div className="flex items-center justify-between mb-6">
             <div>
               <h2 className="text-2xl font-bold text-white mb-1">Your Timeline</h2>
-              <p className="text-gray-500 text-sm">Powered by Groq AI</p>
+              <p className="text-gray-500 text-sm">AI-Powered Analysis</p>
             </div>
             <button
               onClick={fetchTweets}
@@ -794,20 +802,28 @@ export default function TweetsDashboard() {
                         
                         <div className="flex items-center gap-12 mb-4 text-gray-500">
                           <button className="flex items-center gap-2 hover:text-blue-500 transition group">
-                            <MessageCircle className="w-[18px] h-[18px] group-hover:bg-blue-500/10 rounded-full p-2 w-8 h-8" />
-                            <span className="text-sm">12</span>
+                            <div className="group-hover:bg-blue-500/10 rounded-full p-2 transition">
+                              <MessageCircle className="w-[18px] h-[18px]" />
+                            </div>
+                            <span className="text-sm">{Math.floor(Math.random() * 8) + 1}</span>
                           </button>
                           <button className="flex items-center gap-2 hover:text-green-500 transition group">
-                            <Repeat2 className="w-[18px] h-[18px] group-hover:bg-green-500/10 rounded-full p-2 w-8 h-8" />
-                            <span className="text-sm">28</span>
+                            <div className="group-hover:bg-green-500/10 rounded-full p-2 transition">
+                              <Repeat2 className="w-[18px] h-[18px]" />
+                            </div>
+                            <span className="text-sm">{Math.floor(Math.random() * 6) + 1}</span>
                           </button>
                           <button className="flex items-center gap-2 hover:text-pink-500 transition group">
-                            <Heart className="w-[18px] h-[18px] group-hover:bg-pink-500/10 rounded-full p-2 w-8 h-8" />
-                            <span className="text-sm">142</span>
+                            <div className="group-hover:bg-pink-500/10 rounded-full p-2 transition">
+                              <Heart className="w-[18px] h-[18px]" />
+                            </div>
+                            <span className="text-sm">{Math.floor(Math.random() * 10) + 1}</span>
                           </button>
                           <button className="flex items-center gap-2 hover:text-blue-500 transition group">
-                            <BarChart3 className="w-[18px] h-[18px] group-hover:bg-blue-500/10 rounded-full p-2 w-8 h-8" />
-                            <span className="text-sm">1.2K</span>
+                            <div className="group-hover:bg-blue-500/10 rounded-full p-2 transition">
+                              <BarChart3 className="w-[18px] h-[18px]" />
+                            </div>
+                            <span className="text-sm">{Math.floor(Math.random() * 50) + 10}</span>
                           </button>
                         </div>
                         
@@ -843,39 +859,87 @@ export default function TweetsDashboard() {
                             <div className="flex items-center gap-3">
                               <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
                               <div className="text-sm text-gray-300">
-                                Analyzing with Groq AI...
+                                Analyzing with AI...
                               </div>
                             </div>
                           </div>
                         )}
 
                         {tweetAnalysis?.result && !tweetAnalysis.analyzing && (
-                          <div className="mt-4 p-4 bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-xl border border-blue-500/20">
-                            <div className="flex items-start gap-3">
-                              <div className="text-3xl">{tweetAnalysis.result.emotion}</div>
-                              <div className="flex-1">
-                                <div className="font-semibold text-white mb-1 text-sm">
-                                  AI Analysis
+                          <div className="mt-4 p-5 bg-gradient-to-br from-zinc-900 via-zinc-900 to-blue-950/30 rounded-xl border border-zinc-700/50 shadow-lg">
+                            <div className="flex items-start gap-4">
+                              <div className="text-4xl flex-shrink-0 mt-1">{tweetAnalysis.result.emotion}</div>
+                              <div className="flex-1 space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <h4 className="font-bold text-white text-base flex items-center gap-2">
+                                    <Sparkles className="w-4 h-4 text-blue-400" />
+                                    NLP Model Analysis
+                                  </h4>
+                                  <span className="px-2.5 py-1 bg-blue-500/20 text-blue-300 text-xs font-semibold rounded-full border border-blue-500/30">
+                                    {tweetAnalysis.type === 'emotion' ? '🎭 Emotion' : tweetAnalysis.type === 'intention' ? '🎯 Intent' : '✅ Fact Check'}
+                                  </span>
                                 </div>
-                                <div className="text-sm text-gray-300 mb-3">
+                                
+                                <p className="text-gray-300 text-sm leading-relaxed">
                                   {tweetAnalysis.result.reasoning}
-                                </div>
-                                {tweetAnalysis.result.key_themes && tweetAnalysis.result.key_themes.length > 0 && (
-                                  <div className="flex flex-wrap gap-2 mb-3">
-                                    {tweetAnalysis.result.key_themes.map((theme, i) => (
-                                      <span key={i} className="px-2 py-1 bg-zinc-800 rounded-full text-xs text-gray-400">
-                                        {theme}
-                                      </span>
-                                    ))}
+                                </p>
+                                
+                                {tweetAnalysis.result.sentiment && (
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs text-gray-500 font-medium">Sentiment:</span>
+                                    <span className="px-2 py-0.5 bg-gradient-to-r from-purple-500/20 to-blue-500/20 text-purple-300 text-xs font-medium rounded-full border border-purple-500/30">
+                                      {tweetAnalysis.result.sentiment}
+                                    </span>
                                   </div>
                                 )}
-                                <div className="flex items-center gap-3">
-                                  <div className="text-xs text-gray-400">
-                                    Confidence: {Math.round(tweetAnalysis.result.confidence_level * 100)}%
+
+                                {tweetAnalysis.result.key_themes && tweetAnalysis.result.key_themes.length > 0 && (
+                                  <div className="space-y-1.5">
+                                    <span className="text-xs text-gray-500 font-medium">Key Themes:</span>
+                                    <div className="flex flex-wrap gap-2">
+                                      {tweetAnalysis.result.key_themes.map((theme, i) => (
+                                        <span 
+                                          key={i} 
+                                          className="px-2.5 py-1 bg-zinc-800/80 border border-zinc-700 rounded-full text-xs text-gray-300 font-medium hover:bg-zinc-700 transition"
+                                        >
+                                          #{theme}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {tweetAnalysis.result.toxicity_score !== undefined && (
+                                  <div className="space-y-1.5">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-xs text-gray-500 font-medium">Toxicity Score:</span>
+                                      <span className="text-xs text-gray-400 font-semibold">
+                                        {Math.round(tweetAnalysis.result.toxicity_score * 100)}%
+                                      </span>
+                                    </div>
+                                    <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
+                                      <div 
+                                        className={`h-2 rounded-full transition-all duration-1000 ${
+                                          tweetAnalysis.result.toxicity_score > 0.7 ? 'bg-gradient-to-r from-red-500 to-orange-500' :
+                                          tweetAnalysis.result.toxicity_score > 0.4 ? 'bg-gradient-to-r from-yellow-500 to-orange-500' :
+                                          'bg-gradient-to-r from-green-500 to-emerald-500'
+                                        }`}
+                                        style={{ width: `${tweetAnalysis.result.toxicity_score * 100}%` }}
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                <div className="flex items-center gap-4 pt-2 border-t border-zinc-800">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs text-gray-500 font-medium">Confidence:</span>
+                                    <span className="text-xs text-blue-400 font-bold">
+                                      {Math.round(tweetAnalysis.result.confidence_level * 100)}%
+                                    </span>
                                   </div>
                                   <div className="flex-1 bg-zinc-800 rounded-full h-1.5 max-w-32">
                                     <div 
-                                      className="bg-gradient-to-r from-blue-500 to-purple-500 h-1.5 rounded-full transition-all duration-1000"
+                                      className="bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 h-1.5 rounded-full transition-all duration-1000"
                                       style={{ width: `${tweetAnalysis.result.confidence_level * 100}%` }}
                                     />
                                   </div>
