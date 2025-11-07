@@ -48,46 +48,63 @@
 // src/lib/auth.ts
 import TwitterProvider from "next-auth/providers/twitter";
 import { NextAuthOptions } from "next-auth";
+import { JWT } from "next-auth/jwt";
 
 /**
- * Refresh an OAuth2 access token using the refresh token.
- * Adjust endpoint/params if Twitter changes their OAuth2 refresh implementation.
+ * --------------------------------------------------------------------
+ * 1. Refresh an OAuth-2 access token (Twitter v2)
+ * --------------------------------------------------------------------
+ * Twitter’s OAuth-2 refresh endpoint is **not** documented publicly,
+ * but it works exactly like the spec: POST to /oauth2/token with
+ * grant_type=refresh_token.
+ *
+ * The request must be sent as `application/x-www-form-urlencoded`
+ * and **client_id** is required. If your app is “confidential”
+ * (has a client secret) you can also send Basic auth – the code
+ * below works with both.
  */
-async function refreshAccessToken(token: any) {
+async function refreshAccessToken(token: JWT): Promise<JWT> {
   try {
     const url = "https://api.twitter.com/2/oauth2/token";
-    const params = new URLSearchParams();
-    params.append("grant_type", "refresh_token");
-    params.append("refresh_token", token.refreshToken);
-    params.append("client_id", process.env.TWITTER_CLIENT_ID!);
 
-    // If your app requires client_secret in Basic auth, uncomment the Authorization header below:
-    // const basicAuth = Buffer.from(`${process.env.TWITTER_CLIENT_ID}:${process.env.TWITTER_CLIENT_SECRET}`).toString("base64");
+    const body = new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: token.refreshToken as string,
+      client_id: process.env.TWITTER_CLIENT_ID!,
+    });
+
+    // OPTIONAL: if your app is confidential, uncomment the line below
+    // const basic = Buffer.from(
+    //   `${process.env.TWITTER_CLIENT_ID}:${process.env.TWITTER_CLIENT_SECRET}`
+    // ).toString("base64");
+    // headers["Authorization"] = `Basic ${basic}`;
 
     const res = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
-        // "Authorization": `Basic ${basicAuth}`, // uncomment if required by Twitter
+        // "Authorization": `Basic ${basic}`, // <-- uncomment if needed
       },
-      body: params.toString(),
+      body,
     });
 
-    const refreshed = await res.json();
+    const data = await res.json();
 
     if (!res.ok) {
-      console.error("Failed to refresh token", res.status, refreshed);
-      throw refreshed;
+      console.error("[auth] Token refresh failed", res.status, data);
+      throw data;
     }
+
+    console.log("[auth] Token refreshed – new expiry in", data.expires_in, "s");
 
     return {
       ...token,
-      accessToken: refreshed.access_token,
-      accessTokenExpires: Date.now() + (refreshed.expires_in ?? 3600) * 1000,
-      refreshToken: refreshed.refresh_token ?? token.refreshToken, // fallback to old refresh token
+      accessToken: data.access_token,
+      accessTokenExpires: Date.now() + (data.expires_in ?? 7200) * 1000,
+      refreshToken: data.refresh_token ?? token.refreshToken, // fallback
     };
-  } catch (error) {
-    console.error("refreshAccessToken error:", error);
+  } catch (err) {
+    console.error("[auth] refreshAccessToken error:", err);
     return {
       ...token,
       error: "RefreshAccessTokenError",
@@ -95,17 +112,30 @@ async function refreshAccessToken(token: any) {
   }
 }
 
+/**
+ * --------------------------------------------------------------------
+ * 2. Next-Auth configuration
+ * --------------------------------------------------------------------
+ */
 export const authOptions: NextAuthOptions = {
   providers: [
     TwitterProvider({
       clientId: process.env.TWITTER_CLIENT_ID!,
       clientSecret: process.env.TWITTER_CLIENT_SECRET!,
-      version: "2.0",
+      version: "2.0", // forces OAuth-2 (mandatory for tweet.write)
       authorization: {
         params: {
-          // IMPORTANT: include tweet.write and offline.access for posting + refresh
+          /**
+           * Scopes you **must** request:
+           *   tweet.read  – GET /users/:id/tweets
+           *   tweet.write – POST /tweets
+           *   users.read  – GET /users/me (to read the user ID)
+           *   offline.access – gives a refresh token
+           */
           scope: "tweet.read tweet.write users.read offline.access",
-          // prompt: "consent" // optionally force re-consent
+          // Uncomment the line below if you want to force the consent screen
+          // every time (useful while testing):
+          // prompt: "consent",
         },
       },
     }),
@@ -114,66 +144,82 @@ export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
   pages: {
     signIn: "/",
-    error: "/", // redirect to home on error
+    error: "/",
   },
 
   callbacks: {
-    /**
-     * jwt callback runs when user signs in and whenever a JWT is checked.
-     * We persist access/refresh tokens and expiry inside the token.
-     */
+    /** ---------------------------------------------------------
+     *  jwt() – runs on sign-in **and** on every session check
+     * --------------------------------------------------------- */
     async jwt({ token, account, profile }) {
-      // initial sign in: account will be defined
+      // -----------------------------------------------------------------
+      // 1. First sign-in (account is present)
+      // -----------------------------------------------------------------
       if (account) {
-        // account.access_token / account.refresh_token come from provider
         token.accessToken = account.access_token;
         token.refreshToken = account.refresh_token;
-        // converts expires_at (seconds) -> millis, or use account.expires_in
         token.accessTokenExpires = account.expires_at
           ? account.expires_at * 1000
           : account.expires_in
           ? Date.now() + account.expires_in * 1000
           : null;
 
-        // capture twitter id from profile (v2 shape may be profile.data.id)
-        if (profile?.data?.id) {
-          token.twitterId = profile.data.id;
-        } else if (profile?.id) {
-          token.twitterId = profile.id;
-        }
+        // Twitter v2 returns profile.data.id
+        token.twitterId =
+          (profile as any)?.data?.id ?? (profile as any)?.id ?? account.providerAccountId;
+
+        console.log("[auth] New session – scopes:", account.scope);
         return token;
       }
 
-      // Return early if token still valid
-      if (token.accessTokenExpires && Date.now() < token.accessTokenExpires) {
+      // -----------------------------------------------------------------
+      // 2. Token still valid → just return it
+      // -----------------------------------------------------------------
+      if (
+        token.accessTokenExpires &&
+        Date.now() < (token.accessTokenExpires as number)
+      ) {
         return token;
       }
 
-      // Access token expired -> try to refresh using refresh token
+      // -----------------------------------------------------------------
+      // 3. Token expired → try to refresh
+      // -----------------------------------------------------------------
       if (token.refreshToken) {
-        const refreshed = await refreshAccessToken(token);
-        return refreshed;
+        console.log("[auth] Access token expired – refreshing...");
+        return await refreshAccessToken(token);
       }
 
-      // Nothing we can do, return current token (user must re-login)
+      // -----------------------------------------------------------------
+      // 4. Nothing we can do → user must re-authenticate
+      // -----------------------------------------------------------------
+      console.warn("[auth] No refresh token – forcing re-login");
       return token;
     },
 
-    /**
-     * session callback makes token fields available on session.user
-     * so server routes can access session.user.accessToken, etc.
-     */
+    /** ---------------------------------------------------------
+     *  session() – expose fields to server-side `getServerSession`
+     * --------------------------------------------------------- */
     async session({ session, token }) {
-      session.user = session.user || ({} as any);
-      session.user.accessToken = token.accessToken;
-      session.user.refreshToken = token.refreshToken;
-      session.user.accessTokenExpires = token.accessTokenExpires;
-      session.user.twitterId = token.twitterId;
+      // @ts-ignore – NextAuth typings are a bit loose
+      session.user = session.user ?? {};
+
+      session.user.accessToken = token.accessToken as string | undefined;
+      session.user.refreshToken = token.refreshToken as string | undefined;
+      session.user.twitterId = token.twitterId as string | undefined;
+      session.user.accessTokenExpires = token.accessTokenExpires as number | undefined;
+
+      // Optional: surface refresh errors to the client
+      if (token.error) session.error = token.error as string;
+
       return session;
     },
   },
 
-  debug: true,
+  // -----------------------------------------------------------------
+  // Debug mode prints everything NextAuth does – super handy locally
+  // -----------------------------------------------------------------
+  debug: process.env.NODE_ENV === "development",
 };
 
 export default authOptions;
