@@ -1,36 +1,30 @@
-// src/app/api/twitter/tweets/route.js
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../../../../lib/auth";
+// src/components/LoginButton.tsx
+"use client";
+import React from "react";
+import { useSession, signIn, signOut } from "next-auth/react";
 
-export async function GET(req) {
-  const session = await getServerSession(authOptions);
+export default function LoginButton() {
+  const { data: session } = useSession();
 
-  // getServerSession(authOptions) without args works in app router.
-  // session may be null if not authenticated.
-  if (!session?.user?.accessToken || !session?.user?.twitterId) {
-    return new NextResponse(JSON.stringify({ error: "Not authenticated" }), { status: 401 });
-  }
-
-  const accessToken = session.user.accessToken;
-  const userId = session.user.twitterId;
-
-  try {
-    const url = `https://api.twitter.com/2/users/${userId}/tweets?max_results=50&tweet.fields=created_at,text,author_id`;
-
-    const r = await fetch(url, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
-
-    const text = await r.text();
-    if (!r.ok) {
-      return new NextResponse(text || JSON.stringify({ error: "Twitter API error" }), { status: r.status });
+  // Example of an async action with safe error handling
+  const doSomething = async () => {
+    try {
+      // some async work...
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      // handle error (show toast, set state, etc.)
+      console.error("Action failed:", msg);
     }
+  };
 
-    return new NextResponse(text, { status: 200, headers: { "Content-Type": "application/json" } });
-  } catch (err) {
-    return new NextResponse(JSON.stringify({ error: "Server error", detail: err.message }), { status: 500 });
+  if (!session) {
+    return <button onClick={() => signIn("twitter")}>Sign in with X (Twitter)</button>;
   }
+
+  return (
+    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+      {session.user?.image && <img src={session.user.image} alt="avatar" width={32} height={32} style={{ borderRadius: 16 }} />}
+      <button onClick={() => signOut()}>Sign out</button>
+    </div>
+  );
 }

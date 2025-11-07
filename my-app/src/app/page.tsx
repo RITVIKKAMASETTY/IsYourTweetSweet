@@ -1,13 +1,20 @@
-// src/app/page.jsx
+// src/app/page.tsx
 "use client";
+
 import { useSession, signIn, signOut } from "next-auth/react";
 import { useEffect, useState } from "react";
 
+type Tweet = {
+  id: string;
+  text: string;
+  created_at?: string;
+};
+
 export default function HomePage() {
   const { data: session, status } = useSession();
-  const [tweets, setTweets] = useState(null);
+  const [tweets, setTweets] = useState<Tweet[] | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!session) {
@@ -20,14 +27,27 @@ export default function HomePage() {
       setError(null);
       try {
         const res = await fetch("/api/twitter/tweets");
+
         if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
+          // Try to parse an error body, otherwise throw generic
+          let body: any = {};
+          try {
+            body = await res.json();
+          } catch (e) {
+            /* ignore parse errors */
+          }
           throw new Error(body?.error || `HTTP ${res.status}`);
         }
+
         const data = await res.json();
-        setTweets(data.data || []);
-      } catch (err) {
-        setError(err.message);
+        setTweets(data?.data || []);
+      } catch (err: unknown) {
+        // Narrow unknown to string safely
+        if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError(String(err));
+        }
       } finally {
         setLoading(false);
       }
@@ -50,10 +70,20 @@ export default function HomePage() {
       ) : (
         <>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            {session.user.image && <img src={session.user.image} alt="avatar" width={48} height={48} style={{ borderRadius: 24 }} />}
+            {session.user?.image && (
+              <img
+                src={session.user.image}
+                alt="avatar"
+                width={48}
+                height={48}
+                style={{ borderRadius: 24 }}
+              />
+            )}
             <div>
-              <strong>{session.user.name}</strong>
-              <div style={{ fontSize: 12, color: "#666" }}>{session.user.email || session.user.twitterId}</div>
+              <strong>{session.user?.name}</strong>
+              <div style={{ fontSize: 12, color: "#666" }}>
+                {session.user?.email || session.user?.twitterId}
+              </div>
             </div>
             <div style={{ marginLeft: "auto" }}>
               <button onClick={() => signOut()}>Sign out</button>
@@ -70,12 +100,15 @@ export default function HomePage() {
           {!loading && tweets && tweets.length === 0 && <p>No tweets found.</p>}
 
           <ul style={{ listStyle: "none", padding: 0 }}>
-            {tweets && tweets.map((t) => (
-              <li key={t.id} style={{ padding: 12, borderBottom: "1px solid #eee" }}>
-                <div style={{ fontSize: 13, color: "#666" }}>{t.created_at ? new Date(t.created_at).toLocaleString() : ""}</div>
-                <div style={{ marginTop: 6 }}>{t.text}</div>
-              </li>
-            ))}
+            {tweets &&
+              tweets.map((t) => (
+                <li key={t.id} style={{ padding: 12, borderBottom: "1px solid #eee" }}>
+                  <div style={{ fontSize: 13, color: "#666" }}>
+                    {t.created_at ? new Date(t.created_at).toLocaleString() : ""}
+                  </div>
+                  <div style={{ marginTop: 6 }}>{t.text}</div>
+                </li>
+              ))}
           </ul>
         </>
       )}
