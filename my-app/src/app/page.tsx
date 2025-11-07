@@ -312,7 +312,7 @@ export default function TweetsDashboard() {
       let result: AnalysisResult;
 
       if (type === 'emotion') {
-        const response = await fetch("https://is-your-tweet-sweet-76xs.vercel.app/analyze_tweet", {
+        const response = await fetch("https://is-your-tweet-sweet-ten.vercel.app/analyze_tweet", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
