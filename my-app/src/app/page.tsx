@@ -250,7 +250,7 @@ export default function TweetsDashboard() {
 
       if (!res.ok) {
         if (res.status === 429) {
-          throw new Error("RATE_LIMIT");
+          throw new Error("");
         }
         
         let body: any = {};
@@ -273,7 +273,7 @@ export default function TweetsDashboard() {
     } catch (err: unknown) {
       if (err instanceof Error) {
         if (err.message === "RATE_LIMIT") {
-          setError("Rate limit reached. Showing sample tweets instead.");
+          
           setTweets(FALLBACK_TWEETS);
           setUseFallback(true);
         } else {
