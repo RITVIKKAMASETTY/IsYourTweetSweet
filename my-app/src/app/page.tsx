@@ -225,6 +225,7 @@ type Tweet = {
 type AnalysisResult = {
   emotion: string;
   reasoning: string;
+  reasoningSections?: string[]; // Add this for better formatting
   confidence_level: number;
   sentiment?: string;
   key_themes?: string[];
@@ -425,9 +426,30 @@ export default function TweetsDashboard() {
         }
 
         const data = await response.json();
+        
+        // Parse and format the reasoning from backend
+        let formattedReasoning = data.reasoning || "Analysis completed";
+        
+        // Extract emotion emoji if it's in format "emotion emoji"
+        let emotionEmoji = data.emotion || "🤔";
+        if (emotionEmoji.includes(' ')) {
+          const parts = emotionEmoji.split(' ');
+          emotionEmoji = parts[parts.length - 1]; // Get the emoji (last part)
+        }
+        
+        // Clean up reasoning - remove numbering and extra whitespace
+        formattedReasoning = formattedReasoning
+          .replace(/\n\s*\d+\)\s*/g, '\n') // Remove numbered points like "1) ", "2) "
+          .replace(/^\s*\n/, '') // Remove leading newlines
+          .trim();
+        
+        // Split into sections for better display
+        const sections = formattedReasoning.split('\n').filter(s => s.trim());
+        
         result = {
-          emotion: data.emotion || "🤔",
-          reasoning: data.reasoning || "Analysis completed",
+          emotion: emotionEmoji,
+          reasoning: formattedReasoning,
+          reasoningSections: sections, // Add parsed sections
           confidence_level: data.confidence_level || 0.75,
           sentiment: data.sentiment,
           key_themes: [],
@@ -858,9 +880,17 @@ export default function TweetsDashboard() {
                           <div className="mt-4 p-4 bg-zinc-800 rounded-xl border border-zinc-700">
                             <div className="flex items-center gap-3">
                               <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
-                              <div className="text-sm text-gray-300">
-                                Analyzing with AI...
+                              <div className="flex-1">
+                                <div className="text-sm text-gray-300 font-medium mb-1">
+                                  Analyzing with AI...
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  Getting context and processing language patterns
+                                </div>
                               </div>
+                            </div>
+                            <div className="mt-3 w-full bg-zinc-900 rounded-full h-1 overflow-hidden">
+                              <div className="bg-gradient-to-r from-blue-500 to-purple-500 h-1 rounded-full animate-pulse" style={{width: '60%'}}></div>
                             </div>
                           </div>
                         )}
@@ -880,9 +910,39 @@ export default function TweetsDashboard() {
                                   </span>
                                 </div>
                                 
-                                <p className="text-gray-300 text-sm leading-relaxed">
-                                  {tweetAnalysis.result.reasoning}
-                                </p>
+                                {/* Display formatted reasoning sections */}
+                                {tweetAnalysis.result.reasoningSections && tweetAnalysis.result.reasoningSections.length > 0 ? (
+                                  <div className="space-y-2">
+                                    {tweetAnalysis.result.reasoningSections.map((section, idx) => {
+                                      // Extract label and content if format is "Label: content"
+                                      const colonIndex = section.indexOf(':');
+                                      if (colonIndex > 0 && colonIndex < 50) {
+                                        const label = section.substring(0, colonIndex).trim();
+                                        const content = section.substring(colonIndex + 1).trim();
+                                        return (
+                                          <div key={idx} className="bg-zinc-800/40 rounded-lg p-3 border border-zinc-700/30">
+                                            <div className="text-blue-400 text-xs font-semibold mb-1 uppercase tracking-wide">
+                                              {label}
+                                            </div>
+                                            <div className="text-gray-300 text-sm leading-relaxed">
+                                              {content}
+                                            </div>
+                                          </div>
+                                        );
+                                      }
+                                      // If no colon, display as regular paragraph
+                                      return (
+                                        <p key={idx} className="text-gray-300 text-sm leading-relaxed">
+                                          {section}
+                                        </p>
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <p className="text-gray-300 text-sm leading-relaxed">
+                                    {tweetAnalysis.result.reasoning}
+                                  </p>
+                                )}
                                 
                                 {tweetAnalysis.result.sentiment && (
                                   <div className="flex items-center gap-2">
