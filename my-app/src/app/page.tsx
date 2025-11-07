@@ -1,8 +1,8 @@
+// // src/app/page.tsx
 // "use client";
 
 // import { useSession, signIn, signOut } from "next-auth/react";
 // import { useEffect, useState } from "react";
-// import { Twitter, LogOut, RefreshCw, Loader2 } from "lucide-react";
 
 // type Tweet = {
 //   id: string;
@@ -10,204 +10,109 @@
 //   created_at?: string;
 // };
 
-// export default function TweetsDashboard() {
+// export default function HomePage() {
 //   const { data: session, status } = useSession();
-//   const [tweets, setTweets] = useState<Tweet[]>([]);
+//   const [tweets, setTweets] = useState<Tweet[] | null>(null);
 //   const [loading, setLoading] = useState(false);
 //   const [error, setError] = useState<string | null>(null);
 
-//   const fetchTweets = async () => {
-//     if (!session) return;
-    
-//     setLoading(true);
-//     setError(null);
-//     try {
-//       const res = await fetch("/api/twitter/tweets");
-
-//       if (!res.ok) {
-//         let body: any = {};
-//         try {
-//           body = await res.json();
-//         } catch (e) {}
-//         throw new Error(body?.error || `HTTP ${res.status}`);
-//       }
-
-//       const data = await res.json();
-//       setTweets(data?.data || []);
-//     } catch (err: unknown) {
-//       if (err instanceof Error) {
-//         setError(err.message);
-//       } else {
-//         setError(String(err));
-//       }
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
 //   useEffect(() => {
-//     if (session) {
-//       fetchTweets();
-//     } else {
-//       setTweets([]);
+//     if (!session) {
+//       setTweets(null);
+//       return;
 //     }
+
+//     const fetchTweets = async () => {
+//       setLoading(true);
+//       setError(null);
+//       try {
+//         const res = await fetch("/api/twitter/tweets");
+
+//         if (!res.ok) {
+//           // Try to parse an error body, otherwise throw generic
+//           let body: any = {};
+//           try {
+//             body = await res.json();
+//           } catch (e) {
+//             /* ignore parse errors */
+//           }
+//           throw new Error(body?.error || `HTTP ${res.status}`);
+//         }
+
+//         const data = await res.json();
+//         setTweets(data?.data || []);
+//       } catch (err: unknown) {
+//         // Narrow unknown to string safely
+//         if (err instanceof Error) {
+//           setError(err.message);
+//         } else {
+//           setError(String(err));
+//         }
+//       } finally {
+//         setLoading(false);
+//       }
+//     };
+
+//     fetchTweets();
 //   }, [session]);
 
-//   if (status === "loading") {
-//     return (
-//       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-//         <div className="text-center">
-//           <Loader2 className="w-12 h-12 animate-spin text-blue-600 mx-auto mb-4" />
-//           <p className="text-gray-600">Loading...</p>
-//         </div>
-//       </div>
-//     );
-//   }
-
-//   if (!session) {
-//     return (
-//       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-//         <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full text-center">
-//           <div className="bg-blue-100 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-6">
-//             <Twitter className="w-10 h-10 text-blue-600" />
-//           </div>
-//           <h1 className="text-3xl font-bold text-gray-800 mb-3">
-//             Tweet Emotion Detector
-//           </h1>
-//           <p className="text-gray-600 mb-8">
-//             Analyze the emotions in your tweets with AI-powered detection
-//           </p>
-//           <button
-//             onClick={() => signIn("twitter")}
-//             className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg transition duration-200 flex items-center justify-center gap-2"
-//           >
-//             <Twitter className="w-5 h-5" />
-//             Sign in with X (Twitter)
-//           </button>
-//         </div>
-//       </div>
-//     );
-//   }
+//   if (status === "loading") return <p>Loading session...</p>;
 
 //   return (
-//     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-//       {/* Header */}
-//       <header className="bg-white shadow-sm border-b border-gray-200">
-//         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-//           <div className="flex items-center gap-3">
-//             <div className="bg-blue-100 rounded-full w-10 h-10 flex items-center justify-center">
-//               <Twitter className="w-6 h-6 text-blue-600" />
-//             </div>
-//             <h1 className="text-xl font-bold text-gray-800">
-//               Tweet Emotion Detector
-//             </h1>
-//           </div>
-          
-//           <div className="flex items-center gap-4">
+//     <main style={{ padding: 20, fontFamily: "system-ui, sans-serif" }}>
+//       <h1>Is Your Tweet Sweet — Emotion Detector</h1>
+
+//       {!session ? (
+//         <>
+//           <p>You are not signed in.</p>
+//           <button onClick={() => signIn("twitter")}>Sign in with X (Twitter)</button>
+//         </>
+//       ) : (
+//         <>
+//           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
 //             {session.user?.image && (
 //               <img
 //                 src={session.user.image}
 //                 alt="avatar"
-//                 className="w-10 h-10 rounded-full border-2 border-blue-200"
+//                 width={48}
+//                 height={48}
+//                 style={{ borderRadius: 24 }}
 //               />
 //             )}
-//             <div className="hidden sm:block text-right">
-//               <div className="font-semibold text-gray-800">{session.user?.name}</div>
-//               <div className="text-sm text-gray-500">
-//                 {session.user?.email || `ID: ${session.user?.twitterId}`}
+//             <div>
+//               <strong>{session.user?.name}</strong>
+//               <div style={{ fontSize: 12, color: "#666" }}>
+//                 {session.user?.email || session.user?.twitterId}
 //               </div>
 //             </div>
-//             <button
-//               onClick={() => signOut()}
-//               className="p-2 hover:bg-gray-100 rounded-lg transition duration-200"
-//               title="Sign out"
-//             >
-//               <LogOut className="w-5 h-5 text-gray-600" />
-//             </button>
-//           </div>
-//         </div>
-//       </header>
-
-//       {/* Main Content */}
-//       <main className="max-w-6xl mx-auto px-4 py-8">
-//         <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-//           <div className="flex items-center justify-between mb-6">
-//             <h2 className="text-2xl font-bold text-gray-800">Your Tweets</h2>
-//             <button
-//               onClick={fetchTweets}
-//               disabled={loading}
-//               className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 text-white rounded-lg transition duration-200"
-//             >
-//               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-//               Refresh
-//             </button>
+//             <div style={{ marginLeft: "auto" }}>
+//               <button onClick={() => signOut()}>Sign out</button>
+//             </div>
 //           </div>
 
-//           {loading && (
-//             <div className="text-center py-12">
-//               <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
-//               <p className="text-gray-600">Loading your tweets...</p>
-//             </div>
-//           )}
+//           <hr style={{ margin: "16px 0" }} />
 
-//           {error && (
-//             <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-//               <p className="text-red-800 font-semibold">Error loading tweets</p>
-//               <p className="text-red-600 text-sm mt-1">{error}</p>
-//             </div>
-//           )}
+//           <h2>Your recent tweets</h2>
 
-//           {!loading && !error && tweets.length === 0 && (
-//             <div className="text-center py-12">
-//               <div className="bg-gray-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-//                 <Twitter className="w-8 h-8 text-gray-400" />
-//               </div>
-//               <p className="text-gray-600">No tweets found</p>
-//               <p className="text-gray-500 text-sm mt-2">
-//                 Tweet something and refresh to see it here!
-//               </p>
-//             </div>
-//           )}
+//           {loading && <p>Loading tweets...</p>}
+//           {error && <p style={{ color: "red" }}>Error: {error}</p>}
 
-//           {!loading && !error && tweets.length > 0 && (
-//             <div className="space-y-4">
-//               {tweets.map((tweet) => (
-//                 <div
-//                   key={tweet.id}
-//                   className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition duration-200"
-//                 >
-//                   <div className="flex items-start justify-between mb-2">
-//                     <div className="text-xs text-gray-500">
-//                       {tweet.created_at
-//                         ? new Date(tweet.created_at).toLocaleString('en-US', {
-//                             month: 'short',
-//                             day: 'numeric',
-//                             year: 'numeric',
-//                             hour: '2-digit',
-//                             minute: '2-digit'
-//                           })
-//                         : 'Unknown date'}
-//                     </div>
+//           {!loading && tweets && tweets.length === 0 && <p>No tweets found.</p>}
+
+//           <ul style={{ listStyle: "none", padding: 0 }}>
+//             {tweets &&
+//               tweets.map((t) => (
+//                 <li key={t.id} style={{ padding: 12, borderBottom: "1px solid #eee" }}>
+//                   <div style={{ fontSize: 13, color: "#666" }}>
+//                     {t.created_at ? new Date(t.created_at).toLocaleString() : ""}
 //                   </div>
-//                   <p className="text-gray-800 leading-relaxed">{tweet.text}</p>
-                  
-//                   {/* Placeholder for emotion detection - to be implemented */}
-//                   <div className="mt-3 pt-3 border-t border-gray-100">
-//                     <span className="text-xs text-gray-400 italic">
-//                       Emotion detection coming soon...
-//                     </span>
-//                   </div>
-//                 </div>
+//                   <div style={{ marginTop: 6 }}>{t.text}</div>
+//                 </li>
 //               ))}
-//             </div>
-//           )}
-//         </div>
-
-//         <div className="text-center text-sm text-gray-500">
-//           Showing {tweets.length} tweet{tweets.length !== 1 ? 's' : ''}
-//         </div>
-//       </main>
-//     </div>
+//           </ul>
+//         </>
+//       )}
+//     </main>
 //   );
 // }
 "use client";
@@ -225,7 +130,7 @@ type Tweet = {
 type AnalysisResult = {
   emotion: string;
   reasoning: string;
-  reasoningSections?: string[]; // Add this for better formatting
+  reasoningSections?: string[];
   confidence_level: number;
   sentiment?: string;
   key_themes?: string[];
@@ -282,7 +187,6 @@ const FALLBACK_TWEETS: Tweet[] = [
   }
 ];
 
-// Get API key from environment variable - make sure NEXT_PUBLIC_GROQ_API_KEY is set
 const GROQ_API_KEY = process.env.NEXTGRQ || "";
 
 export default function TweetsDashboard() {
@@ -407,7 +311,6 @@ export default function TweetsDashboard() {
     try {
       let result: AnalysisResult;
 
-      // Use the backend API for emotion analysis (original endpoint)
       if (type === 'emotion') {
         const response = await fetch("https://is-your-tweet-sweet-76xs.vercel.app/analyze_tweet", {
           method: "POST",
@@ -427,36 +330,31 @@ export default function TweetsDashboard() {
 
         const data = await response.json();
         
-        // Parse and format the reasoning from backend
         let formattedReasoning = data.reasoning || "Analysis completed";
         
-        // Extract emotion emoji if it's in format "emotion emoji"
         let emotionEmoji = data.emotion || "🤔";
         if (emotionEmoji.includes(' ')) {
           const parts = emotionEmoji.split(' ');
-          emotionEmoji = parts[parts.length - 1]; // Get the emoji (last part)
+          emotionEmoji = parts[parts.length - 1];
         }
         
-        // Clean up reasoning - remove numbering and extra whitespace
         formattedReasoning = formattedReasoning
-          .replace(/\n\s*\d+\)\s*/g, '\n') // Remove numbered points like "1) ", "2) "
-          .replace(/^\s*\n/, '') // Remove leading newlines
+          .replace(/\n\s*\d+\)\s*/g, '\n')
+          .replace(/^\s*\n/, '')
           .trim();
         
-        // Split into sections for better display
         const sections = formattedReasoning.split('\n').filter(s => s.trim());
         
         result = {
           emotion: emotionEmoji,
           reasoning: formattedReasoning,
-          reasoningSections: sections, // Add parsed sections
+          reasoningSections: sections,
           confidence_level: data.confidence_level || 0.75,
           sentiment: data.sentiment,
           key_themes: [],
           toxicity_score: data.toxicity_score
         };
       } 
-      // Use Groq API for intention and factual analysis
       else {
         let systemPrompt = "";
         
@@ -523,7 +421,6 @@ export default function TweetsDashboard() {
             toxicity_score: parsed.toxicity_score
           };
         } catch (e) {
-          // Fallback if JSON parsing fails
           result = {
             emotion: type === 'intention' ? "🎯" : "⚠️",
             reasoning: content.slice(0, 300) || "Analysis completed",
@@ -534,7 +431,6 @@ export default function TweetsDashboard() {
         }
       }
       
-      // Add a small delay for better UX
       setTimeout(() => {
         setAnalysis(prev => ({
           ...prev,
@@ -596,7 +492,8 @@ export default function TweetsDashboard() {
     setPostingState(prev => ({ ...prev, posting: true }));
     
     try {
-      const res = await fetch("/api/twitter/post", {
+      // Twitter API v2 POST /2/tweets endpoint
+      const res = await fetch("/api/twitter/tweets", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -606,7 +503,11 @@ export default function TweetsDashboard() {
         })
       });
 
-      if (!res.ok) throw new Error("Failed to post tweet");
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to post tweet");
+      }
 
       setPostingState(prev => ({ ...prev, posting: false, success: true }));
       
@@ -616,11 +517,8 @@ export default function TweetsDashboard() {
       }, 1500);
     } catch (err) {
       console.error("Post error:", err);
-      setPostingState(prev => ({ ...prev, posting: false, success: true }));
-      
-      setTimeout(() => {
-        closePostModal();
-      }, 1500);
+      setError(err instanceof Error ? err.message : "Failed to post tweet");
+      setPostingState(prev => ({ ...prev, posting: false }));
     }
   };
 
@@ -705,6 +603,15 @@ export default function TweetsDashboard() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-6">
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-6">
+            <p className="text-red-500 text-sm font-medium flex items-center gap-2">
+              <AlertCircle className="w-4 h-4" />
+              {error}
+            </p>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 hover:border-zinc-700 transition">
             <div className="flex items-center justify-between mb-2">
@@ -882,7 +789,7 @@ export default function TweetsDashboard() {
                               <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
                               <div className="flex-1">
                                 <div className="text-sm text-gray-300 font-medium mb-1">
-                                  Analyzing with AI...
+                                  Analysis with NLP Model...
                                 </div>
                                 <div className="text-xs text-gray-500">
                                   Getting context and processing language patterns
@@ -910,11 +817,9 @@ export default function TweetsDashboard() {
                                   </span>
                                 </div>
                                 
-                                {/* Display formatted reasoning sections */}
                                 {tweetAnalysis.result.reasoningSections && tweetAnalysis.result.reasoningSections.length > 0 ? (
                                   <div className="space-y-2">
                                     {tweetAnalysis.result.reasoningSections.map((section, idx) => {
-                                      // Extract label and content if format is "Label: content"
                                       const colonIndex = section.indexOf(':');
                                       if (colonIndex > 0 && colonIndex < 50) {
                                         const label = section.substring(0, colonIndex).trim();
@@ -930,7 +835,6 @@ export default function TweetsDashboard() {
                                           </div>
                                         );
                                       }
-                                      // If no colon, display as regular paragraph
                                       return (
                                         <p key={idx} className="text-gray-300 text-sm leading-relaxed">
                                           {section}
