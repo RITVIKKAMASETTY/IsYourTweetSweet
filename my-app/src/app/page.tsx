@@ -1,125 +1,8 @@
-// // src/app/page.tsx
-// "use client";
-
-// import { useSession, signIn, signOut } from "next-auth/react";
-// import { useEffect, useState } from "react";
-
-// type Tweet = {
-//   id: string;
-//   text: string;
-//   created_at?: string;
-// };
-
-// export default function HomePage() {
-//   const { data: session, status } = useSession();
-//   const [tweets, setTweets] = useState<Tweet[] | null>(null);
-//   const [loading, setLoading] = useState(false);
-//   const [error, setError] = useState<string | null>(null);
-
-//   useEffect(() => {
-//     if (!session) {
-//       setTweets(null);
-//       return;
-//     }
-
-//     const fetchTweets = async () => {
-//       setLoading(true);
-//       setError(null);
-//       try {
-//         const res = await fetch("/api/twitter/tweets");
-
-//         if (!res.ok) {
-//           // Try to parse an error body, otherwise throw generic
-//           let body: any = {};
-//           try {
-//             body = await res.json();
-//           } catch (e) {
-//             /* ignore parse errors */
-//           }
-//           throw new Error(body?.error || `HTTP ${res.status}`);
-//         }
-
-//         const data = await res.json();
-//         setTweets(data?.data || []);
-//       } catch (err: unknown) {
-//         // Narrow unknown to string safely
-//         if (err instanceof Error) {
-//           setError(err.message);
-//         } else {
-//           setError(String(err));
-//         }
-//       } finally {
-//         setLoading(false);
-//       }
-//     };
-
-//     fetchTweets();
-//   }, [session]);
-
-//   if (status === "loading") return <p>Loading session...</p>;
-
-//   return (
-//     <main style={{ padding: 20, fontFamily: "system-ui, sans-serif" }}>
-//       <h1>Is Your Tweet Sweet — Emotion Detector</h1>
-
-//       {!session ? (
-//         <>
-//           <p>You are not signed in.</p>
-//           <button onClick={() => signIn("twitter")}>Sign in with X (Twitter)</button>
-//         </>
-//       ) : (
-//         <>
-//           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-//             {session.user?.image && (
-//               <img
-//                 src={session.user.image}
-//                 alt="avatar"
-//                 width={48}
-//                 height={48}
-//                 style={{ borderRadius: 24 }}
-//               />
-//             )}
-//             <div>
-//               <strong>{session.user?.name}</strong>
-//               <div style={{ fontSize: 12, color: "#666" }}>
-//                 {session.user?.email || session.user?.twitterId}
-//               </div>
-//             </div>
-//             <div style={{ marginLeft: "auto" }}>
-//               <button onClick={() => signOut()}>Sign out</button>
-//             </div>
-//           </div>
-
-//           <hr style={{ margin: "16px 0" }} />
-
-//           <h2>Your recent tweets</h2>
-
-//           {loading && <p>Loading tweets...</p>}
-//           {error && <p style={{ color: "red" }}>Error: {error}</p>}
-
-//           {!loading && tweets && tweets.length === 0 && <p>No tweets found.</p>}
-
-//           <ul style={{ listStyle: "none", padding: 0 }}>
-//             {tweets &&
-//               tweets.map((t) => (
-//                 <li key={t.id} style={{ padding: 12, borderBottom: "1px solid #eee" }}>
-//                   <div style={{ fontSize: 13, color: "#666" }}>
-//                     {t.created_at ? new Date(t.created_at).toLocaleString() : ""}
-//                   </div>
-//                   <div style={{ marginTop: 6 }}>{t.text}</div>
-//                 </li>
-//               ))}
-//           </ul>
-//         </>
-//       )}
-//     </main>
-//   );
-// }
 "use client";
 
 import { useSession, signIn, signOut } from "next-auth/react";
 import { useEffect, useState } from "react";
-import { Twitter, LogOut, RefreshCw, Loader2, Sparkles, AlertCircle, PenLine, Send, Mic, Keyboard, X, Heart, Repeat2, MessageCircle, BarChart3, TrendingUp, Users, Activity, ChevronRight } from "lucide-react";
+import { Twitter, LogOut, RefreshCw, Loader2, Sparkles, AlertCircle, PenLine, Send, Mic, Keyboard, X, Heart, Repeat2, MessageCircle, BarChart3, TrendingUp, Users, Activity, Target, CheckCircle, MessageSquare } from "lucide-react";
 
 type Tweet = {
   id: string;
@@ -135,6 +18,8 @@ type AnalysisResult = {
   sentiment?: string;
   key_themes?: string[];
   toxicity_score?: number;
+  modified_tweet?: string;
+  facts?: string[];
 };
 
 type AnalysisState = {
@@ -150,6 +35,15 @@ type PostingState = {
   success: boolean;
   useKannada: boolean;
   isRecording: boolean;
+  intentText: string;
+  applyingIntent: boolean;
+};
+
+type ChatState = {
+  isOpen: boolean;
+  query: string;
+  response: string;
+  loading: boolean;
 };
 
 type Stats = {
@@ -187,8 +81,6 @@ const FALLBACK_TWEETS: Tweet[] = [
   }
 ];
 
-const GROQ_API_KEY = process.env.NEXTGRQ || "";
-
 export default function TweetsDashboard() {
   const { data: session, status } = useSession();
   const [tweets, setTweets] = useState<Tweet[]>([]);
@@ -201,7 +93,15 @@ export default function TweetsDashboard() {
     posting: false,
     success: false,
     useKannada: false,
-    isRecording: false
+    isRecording: false,
+    intentText: "",
+    applyingIntent: false
+  });
+  const [chatState, setChatState] = useState<ChatState>({
+    isOpen: false,
+    query: "",
+    response: "",
+    loading: false
   });
   const [useFallback, setUseFallback] = useState(false);
   const [stats, setStats] = useState<Stats>({
@@ -210,6 +110,7 @@ export default function TweetsDashboard() {
     engagement: 0,
     topEmotion: "Mixed"
   });
+  const [activeChatTweet, setActiveChatTweet] = useState<string>("");
 
   useEffect(() => {
     if (session) {
@@ -249,10 +150,6 @@ export default function TweetsDashboard() {
       const res = await fetch("/api/twitter/tweets");
 
       if (!res.ok) {
-        if (res.status === 429) {
-        
-        }
-        
         let body: any = {};
         try {
           body = await res.json();
@@ -273,7 +170,6 @@ export default function TweetsDashboard() {
     } catch (err: unknown) {
       if (err instanceof Error) {
         if (err.message === "RATE_LIMIT") {
-          
           setTweets(FALLBACK_TWEETS);
           setUseFallback(true);
         } else {
@@ -325,13 +221,12 @@ export default function TweetsDashboard() {
         });
 
         if (!response.ok) {
-          throw new Error("Backend API request failed");
+          throw new Error("Emotion analysis failed");
         }
 
         const data = await response.json();
         
         let formattedReasoning = data.reasoning || "Analysis completed";
-        
         let emotionEmoji = data.emotion || "🤔";
         if (emotionEmoji.includes(' ')) {
           const parts = emotionEmoji.split(' ');
@@ -355,80 +250,63 @@ export default function TweetsDashboard() {
           toxicity_score: data.toxicity_score
         };
       } 
-      else {
-        let systemPrompt = "";
-        
-        if (type === 'intention') {
-          systemPrompt = `You are an intention analysis expert. Analyze the intent behind tweets and respond in JSON format with:
-{
-  "emotion": "emoji representing intent (like 🎯 for goal-oriented, 💬 for conversational, 📢 for announcement, ❓ for questioning)",
-  "reasoning": "clear explanation of the user's intention and purpose",
-  "confidence_level": number between 0 and 1,
-  "sentiment": "informative/persuasive/expressive/directive/questioning",
-  "key_themes": ["theme1", "theme2"]
-}`;
-        } else {
-          systemPrompt = `You are a fact-checking expert. Analyze claims in tweets and respond in JSON format with:
-{
-  "emotion": "emoji (✅ for verified facts, ⚠️ for questionable/unverified, ❌ for false/misleading, 💭 for opinion)",
-  "reasoning": "detailed explanation of factual accuracy, including what can be verified",
-  "confidence_level": number between 0 and 1,
-  "sentiment": "factual/opinion/misleading/unverified",
-  "key_themes": ["main topics or claims identified"]
-}`;
-        }
-
-        const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      else if (type === 'intention') {
+        const response = await fetch("https://is-your-tweet-sweet-ten.vercel.app/intent", {
           method: "POST",
           headers: {
-            "Authorization": `Bearer ${GROQ_API_KEY}`,
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "accept": "application/json"
           },
           body: JSON.stringify({
-            model: "llama-3.1-70b-versatile",
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: `Analyze this tweet: "${text}"` }
-            ],
-            temperature: 0.7,
-            max_tokens: 600,
-            response_format: { type: "json_object" }
+            tweet: text,
+            intent: "analyze",
+            userid: session?.user?.twitterId || "1"
           })
         });
 
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          console.error("Groq API Error:", response.status, errorData);
-          throw new Error(`Groq API failed: ${response.status} - ${errorData.error?.message || 'Unknown error'}`);
+          throw new Error("Intent analysis failed");
         }
 
         const data = await response.json();
         
-        if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-          throw new Error("Invalid response from Groq API");
+        result = {
+          emotion: "🎯",
+          reasoning: "Intent analysis completed. The tweet can be modified to better express the intended meaning.",
+          confidence_level: 0.85,
+          sentiment: "informative",
+          key_themes: ["intention", "purpose"],
+          modified_tweet: data.modified_tweet
+        };
+      }
+      else {
+        const response = await fetch("https://is-your-tweet-sweet-ten.vercel.app/fact-check", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "accept": "application/json"
+          },
+          body: JSON.stringify({
+            tweet: text
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error("Fact check failed");
         }
+
+        const data = await response.json();
         
-        const content = data.choices[0].message.content || "{}";
+        const factsList = data.facts || [];
         
-        try {
-          const parsed = JSON.parse(content);
-          result = {
-            emotion: parsed.emotion || "🤔",
-            reasoning: parsed.reasoning || "Analysis completed",
-            confidence_level: parsed.confidence_level || 0.75,
-            sentiment: parsed.sentiment,
-            key_themes: parsed.key_themes || [],
-            toxicity_score: parsed.toxicity_score
-          };
-        } catch (e) {
-          result = {
-            emotion: type === 'intention' ? "🎯" : "⚠️",
-            reasoning: content.slice(0, 300) || "Analysis completed",
-            confidence_level: 0.7,
-            sentiment: type === 'intention' ? "informative" : "unverified",
-            key_themes: []
-          };
-        }
+        result = {
+          emotion: factsList.length > 0 ? "✅" : "⚠️",
+          reasoning: "Fact check completed. Here are the verified facts:",
+          confidence_level: 0.8,
+          sentiment: factsList.length > 0 ? "factual" : "unverified",
+          key_themes: ["verification", "facts"],
+          facts: factsList
+        };
       }
       
       setTimeout(() => {
@@ -453,7 +331,9 @@ export default function TweetsDashboard() {
       posting: false,
       success: false,
       useKannada: false,
-      isRecording: false
+      isRecording: false,
+      intentText: "",
+      applyingIntent: false
     });
   };
 
@@ -464,7 +344,9 @@ export default function TweetsDashboard() {
       posting: false,
       success: false,
       useKannada: false,
-      isRecording: false
+      isRecording: false,
+      intentText: "",
+      applyingIntent: false
     });
   };
 
@@ -486,86 +368,149 @@ export default function TweetsDashboard() {
     });
   };
 
-  // const postTweet = async () => {
-  //   if (!postingState.tweetText.trim()) return;
+  const applyIntent = async () => {
+    if (!postingState.intentText.trim()) return;
     
-  //   setPostingState(prev => ({ ...prev, posting: true }));
+    setPostingState(prev => ({ ...prev, applyingIntent: true }));
     
-  //   try {
-  //     // Twitter API v2 POST /2/tweets endpoint
-  //     const res = await fetch("/api/twitter/tweets", {
-  //       method: "POST",
-  //       headers: {
-  //         "Content-Type": "application/json"
-  //       },
-  //       body: JSON.stringify({
-  //         text: postingState.tweetText
-  //       })
-  //     });
+    try {
+      const response = await fetch("https://is-your-tweet-sweet-ten.vercel.app/intent", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "accept": "application/json"
+        },
+        body: JSON.stringify({
+          tweet: postingState.tweetText,
+          intent: postingState.intentText,
+          userid: session?.user?.twitterId || "1"
+        })
+      });
 
-  //     const data = await res.json();
+      if (!response.ok) {
+        throw new Error("Intent modification failed");
+      }
 
-  //     if (!res.ok) {
-  //       throw new Error(data.error || "Failed to post tweet");
-  //     }
-
-  //     setPostingState(prev => ({ ...prev, posting: false, success: true }));
+      const data = await response.json();
       
-  //     setTimeout(() => {
-  //       closePostModal();
-  //       fetchTweets();
-  //     }, 1500);
-  //   } catch (err) {
-  //     console.error("Post error:", err);
-  //     setError(err instanceof Error ? err.message : "Failed to post tweet");
-  //     setPostingState(prev => ({ ...prev, posting: false }));
-  //   }
-  // };
-const postTweet = async () => {
-  // Prevent posting empty tweet
-  if (!postingState.tweetText.trim()) return;
-
-  setPostingState(prev => ({ ...prev, posting: true }));
-  setError(null);
-
-  try {
-    // POST to your Next.js API route → /api/twitter/tweets
-    const res = await fetch("/api/twitter/tweets", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        text: postingState.tweetText.trim(),
-      }),
-    });
-
-    // Try parsing the response
-    const data = await res.json().catch(() => ({}));
-
-    if (!res.ok) {
-      // Show detailed error if available
-      const message =
-        data?.error ||
-        data?.title ||
-        data?.detail ||
-        `Failed to post tweet (${res.status})`;
-      throw new Error(message);
+      let modifiedText = data.modified_tweet || postingState.tweetText;
+      if (modifiedText.startsWith('"') && modifiedText.endsWith('"')) {
+        modifiedText = modifiedText.slice(1, -1);
+      }
+      
+      setPostingState(prev => ({
+        ...prev,
+        tweetText: modifiedText,
+        applyingIntent: false,
+        intentText: ""
+      }));
+    } catch (err) {
+      console.error("Intent error:", err);
+      setError(err instanceof Error ? err.message : "Failed to apply intent");
+      setPostingState(prev => ({ ...prev, applyingIntent: false }));
     }
+  };
 
-    // If success — show confirmation and refresh tweets
-    setPostingState(prev => ({ ...prev, posting: false, success: true }));
+  const postTweet = async () => {
+    if (!postingState.tweetText.trim()) return;
 
-    setTimeout(() => {
-      closePostModal();
-      fetchTweets(); // Refresh user's tweet list
-    }, 1500);
-  } catch (err) {
-    console.error("Post error:", err);
-    setError(err instanceof Error ? err.message : "Failed to post tweet");
-    setPostingState(prev => ({ ...prev, posting: false }));
-  }
-};
+    setPostingState(prev => ({ ...prev, posting: true }));
+    setError(null);
+
+    try {
+      const res = await fetch("/api/twitter/tweets", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          text: postingState.tweetText.trim(),
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        const message =
+          data?.error ||
+          data?.title ||
+          data?.detail ||
+          `Failed to post tweet (${res.status})`;
+        throw new Error(message);
+      }
+
+      setPostingState(prev => ({ ...prev, posting: false, success: true }));
+
+      setTimeout(() => {
+        closePostModal();
+        fetchTweets();
+      }, 1500);
+    } catch (err) {
+      console.error("Post error:", err);
+      setError(err instanceof Error ? err.message : "Failed to post tweet");
+      setPostingState(prev => ({ ...prev, posting: false }));
+    }
+  };
+
+  const openChat = (tweetText: string) => {
+    setActiveChatTweet(tweetText);
+    setChatState({
+      isOpen: true,
+      query: "",
+      response: "",
+      loading: false
+    });
+  };
+
+  const closeChat = () => {
+    setChatState({
+      isOpen: false,
+      query: "",
+      response: "",
+      loading: false
+    });
+    setActiveChatTweet("");
+  };
+
+  const sendChatQuery = async () => {
+    if (!chatState.query.trim()) return;
+    
+    setChatState(prev => ({ ...prev, loading: true }));
+    
+    try {
+      const response = await fetch("https://is-your-tweet-sweet-ten.vercel.app/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "accept": "application/json"
+        },
+        body: JSON.stringify({
+          tweet: activeChatTweet,
+          query: chatState.query,
+          userid: session?.user?.twitterId || "1"
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error("Chat request failed");
+      }
+
+      const data = await response.json();
+      
+      setChatState(prev => ({
+        ...prev,
+        response: data.answer || "No response received",
+        loading: false
+      }));
+    } catch (err) {
+      console.error("Chat error:", err);
+      setChatState(prev => ({
+        ...prev,
+        response: "Failed to get response. Please try again.",
+        loading: false
+      }));
+    }
+  };
 
   useEffect(() => {
     if (session) {
@@ -815,7 +760,7 @@ const postTweet = async () => {
                             disabled={tweetAnalysis?.analyzing}
                             className="flex items-center gap-2 px-3 py-1.5 text-xs bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 rounded-full transition disabled:opacity-50 border border-purple-500/20 font-medium"
                           >
-                            <AlertCircle className="w-3.5 h-3.5" />
+                            <Target className="w-3.5 h-3.5" />
                             Intent
                           </button>
                           <button
@@ -823,136 +768,99 @@ const postTweet = async () => {
                             disabled={tweetAnalysis?.analyzing}
                             className="flex items-center gap-2 px-3 py-1.5 text-xs bg-green-500/10 hover:bg-green-500/20 text-green-400 rounded-full transition disabled:opacity-50 border border-green-500/20 font-medium"
                           >
-                            <PenLine className="w-3.5 h-3.5" />
+                            <CheckCircle className="w-3.5 h-3.5" />
                             Fact Check
+                          </button>
+                          <button
+                            onClick={() => openChat(tweet.text)}
+                            className="flex items-center gap-2 px-3 py-1.5 text-xs bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 rounded-full transition border border-orange-500/20 font-medium"
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            Chat
                           </button>
                         </div>
 
                         {tweetAnalysis?.analyzing && (
-                          <div className="mt-4 p-4 bg-zinc-800 rounded-xl border border-zinc-700">
+                          <div className="mt-4 bg-zinc-900 border border-zinc-800 rounded-xl p-4">
                             <div className="flex items-center gap-3">
                               <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
-                              <div className="flex-1">
-                                <div className="text-sm text-gray-300 font-medium mb-1">
-                                  Analysis with NLP Model...
-                                </div>
-                                <div className="text-xs text-gray-500">
-                                  Getting context and processing language patterns
-                                </div>
-                              </div>
-                            </div>
-                            <div className="mt-3 w-full bg-zinc-900 rounded-full h-1 overflow-hidden">
-                              <div className="bg-gradient-to-r from-blue-500 to-purple-500 h-1 rounded-full animate-pulse" style={{width: '60%'}}></div>
+                              <span className="text-gray-400 text-sm">Analyzing tweet...</span>
                             </div>
                           </div>
                         )}
 
-                        {tweetAnalysis?.result && !tweetAnalysis.analyzing && (
-                          <div className="mt-4 p-5 bg-gradient-to-br from-zinc-900 via-zinc-900 to-blue-950/30 rounded-xl border border-zinc-700/50 shadow-lg">
-                            <div className="flex items-start gap-4">
-                              <div className="text-4xl flex-shrink-0 mt-1">{tweetAnalysis.result.emotion}</div>
-                              <div className="flex-1 space-y-3">
-                                <div className="flex items-center justify-between">
-                                  <h4 className="font-bold text-white text-base flex items-center gap-2">
-                                    <Sparkles className="w-4 h-4 text-blue-400" />
-                                    NLP Model Analysis
+                        {tweetAnalysis?.result && (
+                          <div className="mt-4 bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+                            <div className="flex items-start gap-3 mb-3">
+                              <div className="text-3xl">{tweetAnalysis.result.emotion}</div>
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <h4 className="text-white font-semibold">
+                                    {tweetAnalysis.type === 'emotion' && 'Emotion Analysis'}
+                                    {tweetAnalysis.type === 'intention' && 'Intent Analysis'}
+                                    {tweetAnalysis.type === 'factual' && 'Fact Check'}
                                   </h4>
-                                  <span className="px-2.5 py-1 bg-blue-500/20 text-blue-300 text-xs font-semibold rounded-full border border-blue-500/30">
-                                    {tweetAnalysis.type === 'emotion' ? '🎭 Emotion' : tweetAnalysis.type === 'intention' ? '🎯 Intent' : '✅ Fact Check'}
+                                  <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 text-xs rounded-full">
+                                    {Math.round(tweetAnalysis.result.confidence_level * 100)}% confident
                                   </span>
                                 </div>
-                                
-                                {tweetAnalysis.result.reasoningSections && tweetAnalysis.result.reasoningSections.length > 0 ? (
+
+                                {tweetAnalysis.type === 'emotion' && tweetAnalysis.result.reasoningSections && (
                                   <div className="space-y-2">
-                                    {tweetAnalysis.result.reasoningSections.map((section, idx) => {
-                                      const colonIndex = section.indexOf(':');
-                                      if (colonIndex > 0 && colonIndex < 50) {
-                                        const label = section.substring(0, colonIndex).trim();
-                                        const content = section.substring(colonIndex + 1).trim();
-                                        return (
-                                          <div key={idx} className="bg-zinc-800/40 rounded-lg p-3 border border-zinc-700/30">
-                                            <div className="text-blue-400 text-xs font-semibold mb-1 uppercase tracking-wide">
-                                              {label}
-                                            </div>
-                                            <div className="text-gray-300 text-sm leading-relaxed">
-                                              {content}
-                                            </div>
-                                          </div>
-                                        );
-                                      }
-                                      return (
-                                        <p key={idx} className="text-gray-300 text-sm leading-relaxed">
-                                          {section}
-                                        </p>
-                                      );
-                                    })}
+                                    {tweetAnalysis.result.reasoningSections.map((section, idx) => (
+                                      <p key={idx} className="text-gray-300 text-sm leading-relaxed">
+                                        {section}
+                                      </p>
+                                    ))}
                                   </div>
-                                ) : (
-                                  <p className="text-gray-300 text-sm leading-relaxed">
-                                    {tweetAnalysis.result.reasoning}
-                                  </p>
                                 )}
-                                
+
+                                {tweetAnalysis.type === 'intention' && tweetAnalysis.result.modified_tweet && (
+                                  <div className="space-y-3">
+                                    <p className="text-gray-300 text-sm">{tweetAnalysis.result.reasoning}</p>
+                                    <div className="bg-black border border-zinc-700 rounded-lg p-3">
+                                      <div className="text-xs text-gray-500 mb-2">Suggested modification:</div>
+                                      <p className="text-white text-sm">{tweetAnalysis.result.modified_tweet}</p>
+                                    </div>
+                                    <button
+                                      onClick={() => openPostModal(tweetAnalysis.result?.modified_tweet)}
+                                      className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                                    >
+                                      <PenLine className="w-3 h-3" />
+                                      Use this version
+                                    </button>
+                                  </div>
+                                )}
+
+                                {tweetAnalysis.type === 'factual' && tweetAnalysis.result.facts && (
+                                  <div className="space-y-2">
+                                    <p className="text-gray-300 text-sm mb-3">{tweetAnalysis.result.reasoning}</p>
+                                    {tweetAnalysis.result.facts.length > 0 ? (
+                                      <ul className="space-y-2">
+                                        {tweetAnalysis.result.facts.map((fact, idx) => (
+                                          <li key={idx} className="flex items-start gap-2 text-sm text-gray-300">
+                                            <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
+                                            <span>{fact}</span>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    ) : (
+                                      <p className="text-yellow-500 text-sm flex items-center gap-2">
+                                        <AlertCircle className="w-4 h-4" />
+                                        No verifiable facts found in this tweet
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+
                                 {tweetAnalysis.result.sentiment && (
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-xs text-gray-500 font-medium">Sentiment:</span>
-                                    <span className="px-2 py-0.5 bg-gradient-to-r from-purple-500/20 to-blue-500/20 text-purple-300 text-xs font-medium rounded-full border border-purple-500/30">
+                                  <div className="mt-3 flex items-center gap-2">
+                                    <span className="text-xs text-gray-500">Sentiment:</span>
+                                    <span className="px-2 py-0.5 bg-zinc-800 text-gray-300 text-xs rounded-full capitalize">
                                       {tweetAnalysis.result.sentiment}
                                     </span>
                                   </div>
                                 )}
-
-                                {tweetAnalysis.result.key_themes && tweetAnalysis.result.key_themes.length > 0 && (
-                                  <div className="space-y-1.5">
-                                    <span className="text-xs text-gray-500 font-medium">Key Themes:</span>
-                                    <div className="flex flex-wrap gap-2">
-                                      {tweetAnalysis.result.key_themes.map((theme, i) => (
-                                        <span 
-                                          key={i} 
-                                          className="px-2.5 py-1 bg-zinc-800/80 border border-zinc-700 rounded-full text-xs text-gray-300 font-medium hover:bg-zinc-700 transition"
-                                        >
-                                          #{theme}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-
-                                {tweetAnalysis.result.toxicity_score !== undefined && (
-                                  <div className="space-y-1.5">
-                                    <div className="flex items-center justify-between">
-                                      <span className="text-xs text-gray-500 font-medium">Toxicity Score:</span>
-                                      <span className="text-xs text-gray-400 font-semibold">
-                                        {Math.round(tweetAnalysis.result.toxicity_score * 100)}%
-                                      </span>
-                                    </div>
-                                    <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
-                                      <div 
-                                        className={`h-2 rounded-full transition-all duration-1000 ${
-                                          tweetAnalysis.result.toxicity_score > 0.7 ? 'bg-gradient-to-r from-red-500 to-orange-500' :
-                                          tweetAnalysis.result.toxicity_score > 0.4 ? 'bg-gradient-to-r from-yellow-500 to-orange-500' :
-                                          'bg-gradient-to-r from-green-500 to-emerald-500'
-                                        }`}
-                                        style={{ width: `${tweetAnalysis.result.toxicity_score * 100}%` }}
-                                      />
-                                    </div>
-                                  </div>
-                                )}
-                                
-                                <div className="flex items-center gap-4 pt-2 border-t border-zinc-800">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-xs text-gray-500 font-medium">Confidence:</span>
-                                    <span className="text-xs text-blue-400 font-bold">
-                                      {Math.round(tweetAnalysis.result.confidence_level * 100)}%
-                                    </span>
-                                  </div>
-                                  <div className="flex-1 bg-zinc-800 rounded-full h-1.5 max-w-32">
-                                    <div 
-                                      className="bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 h-1.5 rounded-full transition-all duration-1000"
-                                      style={{ width: `${tweetAnalysis.result.confidence_level * 100}%` }}
-                                    />
-                                  </div>
-                                </div>
                               </div>
                             </div>
                           </div>
@@ -968,10 +876,10 @@ const postTweet = async () => {
       </main>
 
       {postingState.isOpen && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-zinc-900 rounded-2xl shadow-2xl max-w-2xl w-full p-6 border border-zinc-800">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-white">Compose Tweet</h3>
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-zinc-900 border-b border-zinc-800 px-6 py-4 flex items-center justify-between">
+              <h3 className="text-xl font-bold text-white">Create Post</h3>
               <button
                 onClick={closePostModal}
                 className="p-2 hover:bg-zinc-800 rounded-full transition"
@@ -980,80 +888,141 @@ const postTweet = async () => {
               </button>
             </div>
 
-            <div className="flex items-start gap-3 mb-4">
-              {session.user?.image && (
-                <img src={session.user.image} alt="" className="w-10 h-10 rounded-full" />
-              )}
-              <textarea
-                value={postingState.tweetText}
-                onChange={(e) => setPostingState(prev => ({ ...prev, tweetText: e.target.value }))}
-                placeholder="What's happening?"
-                className="flex-1 bg-transparent border-0 resize-none focus:outline-none text-white placeholder-gray-600 text-lg min-h-32"
-                disabled={postingState.posting}
-                maxLength={280}
-              />
-            </div>
-
-            <div className="border-t border-zinc-800 pt-4">
-              <div className="flex items-center justify-between">
+            <div className="p-6">
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-400 mb-2">
+                  Intent (optional)
+                </label>
                 <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={postingState.intentText}
+                    onChange={(e) => setPostingState(prev => ({ ...prev, intentText: e.target.value }))}
+                    placeholder="e.g., make it more professional, add humor, simplify..."
+                    className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                  />
                   <button
-                    onClick={toggleRecording}
-                    disabled={postingState.posting}
-                    className={`p-2 rounded-full transition ${
-                      postingState.isRecording 
-                        ? 'bg-red-500/20 text-red-400' 
-                        : 'hover:bg-zinc-800 text-blue-500'
-                    }`}
-                    title="Voice input"
+                    onClick={applyIntent}
+                    disabled={!postingState.intentText.trim() || postingState.applyingIntent}
+                    className="px-4 py-2 bg-purple-500 hover:bg-purple-600 disabled:bg-zinc-700 disabled:text-gray-500 text-white rounded-lg transition font-medium flex items-center gap-2"
                   >
-                    <Mic className={`w-5 h-5 ${postingState.isRecording ? 'animate-pulse' : ''}`} />
-                  </button>
-                  <button
-                    onClick={() => setPostingState(prev => ({ ...prev, useKannada: !prev.useKannada }))}
-                    disabled={postingState.posting}
-                    className={`p-2 rounded-full transition ${
-                      postingState.useKannada 
-                        ? 'bg-blue-500/20 text-blue-400' 
-                        : 'hover:bg-zinc-800 text-gray-500'
-                    }`}
-                    title="Kannada keyboard"
-                  >
-                    <Keyboard className="w-5 h-5" />
-                  </button>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className={`text-sm ${postingState.tweetText.length > 260 ? 'text-red-400' : 'text-gray-500'}`}>
-                    {postingState.tweetText.length} / 280
-                  </div>
-                  <button
-                    onClick={postTweet}
-                    disabled={postingState.posting || !postingState.tweetText.trim()}
-                    className="px-6 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-zinc-700 disabled:text-gray-500 text-white rounded-full font-bold transition"
-                  >
-                    {postingState.posting ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                    ) : postingState.success ? (
-                      "Posted!"
+                    {postingState.applyingIntent ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Applying...
+                      </>
                     ) : (
-                      "Post"
+                      <>
+                        <Target className="w-4 h-4" />
+                        Apply
+                      </>
                     )}
                   </button>
                 </div>
               </div>
 
-              {postingState.isRecording && (
-                <div className="mt-3 p-3 bg-red-500/10 rounded-xl text-sm text-red-400 flex items-center gap-2 border border-red-500/20">
-                  <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-                  Recording... Speak now
+              <textarea
+                value={postingState.tweetText}
+                onChange={(e) => setPostingState(prev => ({ ...prev, tweetText: e.target.value }))}
+                placeholder="What's happening?"
+                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 min-h-[150px] resize-none"
+              />
+
+              <div className="flex items-center justify-between mt-4">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={toggleRecording}
+                    className={`p-2 rounded-full transition ${
+                      postingState.isRecording
+                        ? 'bg-red-500 hover:bg-red-600'
+                        : 'bg-zinc-800 hover:bg-zinc-700'
+                    }`}
+                  >
+                    <Mic className={`w-5 h-5 ${postingState.isRecording ? 'text-white animate-pulse' : 'text-gray-400'}`} />
+                  </button>
+                  <span className="text-sm text-gray-400">
+                    {postingState.tweetText.length}/280
+                  </span>
+                </div>
+
+                <button
+                  onClick={postTweet}
+                  disabled={!postingState.tweetText.trim() || postingState.posting || postingState.success}
+                  className="px-6 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-zinc-700 disabled:text-gray-500 text-white rounded-full transition font-bold flex items-center gap-2"
+                >
+                  {postingState.posting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Posting...
+                    </>
+                  ) : postingState.success ? (
+                    <>
+                      <CheckCircle className="w-4 h-4" />
+                      Posted!
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4" />
+                      Post
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {chatState.isOpen && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-2xl w-full max-h-[90vh] flex flex-col">
+            <div className="bg-zinc-900 border-b border-zinc-800 px-6 py-4 flex items-center justify-between">
+              <h3 className="text-xl font-bold text-white">Chat about Tweet</h3>
+              <button
+                onClick={closeChat}
+                className="p-2 hover:bg-zinc-800 rounded-full transition"
+              >
+                <X className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+
+            <div className="flex-1 p-6 overflow-y-auto">
+              <div className="bg-zinc-800 border border-zinc-700 rounded-lg p-4 mb-4">
+                <p className="text-gray-300 text-sm">{activeChatTweet}</p>
+              </div>
+
+              {chatState.response && (
+                <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4 mb-4">
+                  <p className="text-blue-100 text-sm leading-relaxed">{chatState.response}</p>
                 </div>
               )}
 
-              {postingState.useKannada && (
-                <div className="mt-3 p-3 bg-blue-500/10 rounded-xl text-sm text-blue-400 border border-blue-500/20">
-                  🇮🇳 Kannada keyboard enabled
+              {chatState.loading && (
+                <div className="flex items-center gap-3 text-gray-400">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span className="text-sm">Thinking...</span>
                 </div>
               )}
+            </div>
+
+            <div className="border-t border-zinc-800 p-4">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={chatState.query}
+                  onChange={(e) => setChatState(prev => ({ ...prev, query: e.target.value }))}
+                  onKeyPress={(e) => e.key === 'Enter' && sendChatQuery()}
+                  placeholder="Ask anything about this tweet..."
+                  className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                />
+                <button
+                  onClick={sendChatQuery}
+                  disabled={!chatState.query.trim() || chatState.loading}
+                  className="px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-zinc-700 disabled:text-gray-500 text-white rounded-lg transition font-medium"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
