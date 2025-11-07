@@ -2,7 +2,7 @@
 
 import { useSession, signIn, signOut } from "next-auth/react";
 import { useEffect, useState } from "react";
-import { Twitter, LogOut, RefreshCw, Loader2, Sparkles, AlertCircle, PenLine, Send, Mic, X, Heart, Repeat2, MessageCircle, BarChart3, TrendingUp, Users, Activity, Target, CheckCircle, MessageSquare, Zap } from "lucide-react";
+import { Twitter, LogOut, RefreshCw, Loader2, Sparkles, AlertCircle, PenLine, Send, Mic, Keyboard, X, Heart, Repeat2, MessageCircle, BarChart3, TrendingUp, Users, Activity, Target, CheckCircle, MessageSquare } from "lucide-react";
 
 type Tweet = {
   id: string;
@@ -173,10 +173,12 @@ export default function TweetsDashboard() {
           setTweets(FALLBACK_TWEETS);
           setUseFallback(true);
         } else {
+          setError(err.message);
           const cached = sessionStorage.getItem('cachedTweets');
           if (cached) {
             try {
               setTweets(JSON.parse(cached));
+              setError(err.message + " (showing cached tweets)");
             } catch (e) {
               setTweets(FALLBACK_TWEETS);
               setUseFallback(true);
@@ -187,6 +189,7 @@ export default function TweetsDashboard() {
           }
         }
       } else {
+        setError(String(err));
         setTweets(FALLBACK_TWEETS);
         setUseFallback(true);
       }
@@ -403,6 +406,7 @@ export default function TweetsDashboard() {
       }));
     } catch (err) {
       console.error("Intent error:", err);
+      setError(err instanceof Error ? err.message : "Failed to apply intent");
       setPostingState(prev => ({ ...prev, applyingIntent: false }));
     }
   };
@@ -411,6 +415,7 @@ export default function TweetsDashboard() {
     if (!postingState.tweetText.trim()) return;
 
     setPostingState(prev => ({ ...prev, posting: true }));
+    setError(null);
 
     try {
       const res = await fetch("/api/twitter/tweets", {
@@ -442,6 +447,7 @@ export default function TweetsDashboard() {
       }, 1500);
     } catch (err) {
       console.error("Post error:", err);
+      setError(err instanceof Error ? err.message : "Failed to post tweet");
       setPostingState(prev => ({ ...prev, posting: false }));
     }
   };
@@ -516,13 +522,10 @@ export default function TweetsDashboard() {
 
   if (status === "loading") {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-950 flex items-center justify-center">
+      <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="text-center">
-          <div className="relative">
-            <Loader2 className="w-16 h-16 animate-spin text-blue-500 mx-auto mb-4" />
-            <div className="absolute inset-0 w-16 h-16 bg-blue-500/20 blur-xl mx-auto"></div>
-          </div>
-          <p className="text-gray-300 text-lg font-medium">Loading your intelligence...</p>
+          <Loader2 className="w-16 h-16 animate-spin text-blue-500 mx-auto mb-4" />
+          <p className="text-gray-400 text-lg">Loading...</p>
         </div>
       </div>
     );
@@ -530,212 +533,155 @@ export default function TweetsDashboard() {
 
   if (!session) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-950 flex items-center justify-center p-4 relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-900/20 via-transparent to-transparent"></div>
-        <div className="absolute inset-0 bg-grid-white/[0.02] bg-[size:60px_60px]"></div>
-        
-        <div className="relative bg-gradient-to-br from-zinc-900/90 to-black/90 backdrop-blur-xl rounded-3xl shadow-2xl p-12 max-w-md w-full text-center border border-zinc-800/50">
-          <div className="relative mb-8">
-            <div className="absolute inset-0 bg-blue-500/20 blur-3xl rounded-full"></div>
-            <div className="relative bg-gradient-to-br from-blue-500 to-blue-600 rounded-full w-24 h-24 flex items-center justify-center mx-auto shadow-lg shadow-blue-500/50">
-              <Twitter className="w-12 h-12 text-white" />
-            </div>
+      <div className="min-h-screen bg-black flex items-center justify-center p-4">
+        <div className="bg-zinc-900 rounded-2xl shadow-2xl p-10 max-w-md w-full text-center border border-zinc-800">
+          <div className="bg-blue-500 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-6">
+            <Twitter className="w-10 h-10 text-white" />
           </div>
-          
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent mb-3">
+          <h1 className="text-3xl font-bold text-white mb-3">
             Tweet Intelligence
           </h1>
-          <p className="text-gray-400 mb-10 text-lg">
-            AI-powered insights for your social presence
+          <p className="text-gray-400 mb-8">
+            AI-powered tweet analysis with NLP Models
           </p>
-          
           <button
             onClick={() => signIn("twitter")}
-            className="group w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-bold py-4 px-6 rounded-full transition-all duration-300 flex items-center justify-center gap-3 shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 hover:scale-105"
+            className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 px-6 rounded-full transition duration-200 flex items-center justify-center gap-3"
           >
-            <Twitter className="w-5 h-5 group-hover:rotate-12 transition-transform" />
-            Continue with X
+            <Twitter className="w-5 h-5" />
+            Sign in with X
           </button>
-          
-          <div className="mt-8 flex items-center justify-center gap-4 text-sm text-gray-500">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-blue-400" />
-              <span>AI Analysis</span>
-            </div>
-            <div className="w-1 h-1 bg-gray-600 rounded-full"></div>
-            <div className="flex items-center gap-2">
-              <Zap className="w-4 h-4 text-cyan-400" />
-              <span>Real-time Insights</span>
-            </div>
-          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950/30 to-slate-950">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-900/10 via-transparent to-transparent pointer-events-none"></div>
-      
-      <header className="sticky top-0 z-40 backdrop-blur-xl bg-black/50 border-b border-white/5">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <div className="absolute inset-0 bg-blue-500/30 blur-lg rounded-full"></div>
-                <Twitter className="relative w-8 h-8 text-blue-400" />
-              </div>
-              <div className="hidden sm:block">
-                <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
-                  Tweet Intelligence
-                </h1>
-                <p className="text-xs text-gray-500">AI-Powered Analysis</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => openPostModal()}
-                className="group px-6 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-full font-bold transition-all duration-300 shadow-lg shadow-blue-500/20 hover:shadow-blue-500/40 hover:scale-105 hidden sm:flex items-center gap-2"
-              >
-                <PenLine className="w-4 h-4 group-hover:rotate-12 transition-transform" />
-                Post
-              </button>
-              
-              {session.user?.image && (
-                <img
-                  src={session.user.image}
-                  alt="avatar"
-                  className="w-10 h-10 rounded-full border-2 border-blue-500/30 ring-2 ring-blue-500/10"
-                />
-              )}
-              
-              <button
-                onClick={() => signOut()}
-                className="p-2.5 hover:bg-white/5 rounded-full transition-all duration-200 group"
-                title="Sign out"
-              >
-                <LogOut className="w-5 h-5 text-gray-400 group-hover:text-red-400 transition-colors" />
-              </button>
-            </div>
+    <div className="min-h-screen bg-black">
+      <header className="bg-black border-b border-zinc-800 sticky top-0 z-40 backdrop-blur-xl bg-opacity-80">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Twitter className="w-8 h-8 text-blue-500" />
+            <h1 className="text-xl font-bold text-white hidden sm:block">
+              Tweet Intelligence
+            </h1>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => openPostModal()}
+              className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-full font-bold transition hidden sm:block"
+            >
+              Post
+            </button>
+            {session.user?.image && (
+              <img
+                src={session.user.image}
+                alt="avatar"
+                className="w-10 h-10 rounded-full border-2 border-zinc-700"
+              />
+            )}
+            <button
+              onClick={() => signOut()}
+              className="p-2 hover:bg-zinc-900 rounded-full transition"
+              title="Sign out"
+            >
+              <LogOut className="w-5 h-5 text-gray-400" />
+            </button>
           </div>
         </div>
       </header>
 
-      <main className="relative max-w-7xl mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-8">
-          <div className="group relative bg-gradient-to-br from-zinc-900/80 to-black/80 backdrop-blur-sm border border-white/5 rounded-2xl p-6 hover:border-blue-500/30 transition-all duration-300 overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full blur-3xl group-hover:bg-blue-500/10 transition-all duration-300"></div>
-            <div className="relative">
-              <div className="flex items-center justify-between mb-3">
-                <div className="text-gray-400 text-sm font-medium">Total Tweets</div>
-                <div className="p-2 bg-blue-500/10 rounded-lg">
-                  <Twitter className="w-5 h-5 text-blue-400" />
-                </div>
-              </div>
-              <div className="text-4xl font-bold text-white mb-1">{stats.totalTweets}</div>
-              <div className="text-xs text-green-400 flex items-center gap-1">
-                <TrendingUp className="w-3 h-3" />
-                +12% from last week
-              </div>
+      <main className="max-w-7xl mx-auto px-4 py-6">
+        {/* {error && (
+          <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-6">
+            <p className="text-red-500 text-sm font-medium flex items-center gap-2">
+              <AlertCircle className="w-4 h-4" />
+              {error}
+            </p>
+          </div>
+        )} */}
+
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 hover:border-zinc-700 transition">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-gray-400 text-sm font-medium">Total Tweets</div>
+              <Twitter className="w-5 h-5 text-blue-500" />
+            </div>
+            <div className="text-3xl font-bold text-white">{stats.totalTweets}</div>
+            <div className="text-xs text-green-500 mt-1 flex items-center gap-1">
+              <TrendingUp className="w-3 h-3" />
+              +12% from last week
             </div>
           </div>
 
-          <div className="group relative bg-gradient-to-br from-zinc-900/80 to-black/80 backdrop-blur-sm border border-white/5 rounded-2xl p-6 hover:border-green-500/30 transition-all duration-300 overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/5 rounded-full blur-3xl group-hover:bg-green-500/10 transition-all duration-300"></div>
-            <div className="relative">
-              <div className="flex items-center justify-between mb-3">
-                <div className="text-gray-400 text-sm font-medium">Avg Sentiment</div>
-                <div className="p-2 bg-green-500/10 rounded-lg">
-                  <Activity className="w-5 h-5 text-green-400" />
-                </div>
-              </div>
-              <div className="text-4xl font-bold text-white mb-1">{stats.avgSentiment}</div>
-              <div className="text-xs text-gray-500">AI-powered analysis</div>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 hover:border-zinc-700 transition">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-gray-400 text-sm font-medium">Avg Sentiment</div>
+              <Activity className="w-5 h-5 text-green-500" />
+            </div>
+            <div className="text-3xl font-bold text-white">{stats.avgSentiment}</div>
+            <div className="text-xs text-gray-500 mt-1">Based on AI analysis</div>
+          </div>
+
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 hover:border-zinc-700 transition">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-gray-400 text-sm font-medium">Engagement</div>
+              <Users className="w-5 h-5 text-purple-500" />
+            </div>
+            <div className="text-3xl font-bold text-white">{stats.engagement}</div>
+            <div className="text-xs text-purple-500 mt-1 flex items-center gap-1">
+              <TrendingUp className="w-3 h-3" />
+              High interaction rate
             </div>
           </div>
 
-          <div className="group relative bg-gradient-to-br from-zinc-900/80 to-black/80 backdrop-blur-sm border border-white/5 rounded-2xl p-6 hover:border-purple-500/30 transition-all duration-300 overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/5 rounded-full blur-3xl group-hover:bg-purple-500/10 transition-all duration-300"></div>
-            <div className="relative">
-              <div className="flex items-center justify-between mb-3">
-                <div className="text-gray-400 text-sm font-medium">Engagement</div>
-                <div className="p-2 bg-purple-500/10 rounded-lg">
-                  <Users className="w-5 h-5 text-purple-400" />
-                </div>
-              </div>
-              <div className="text-4xl font-bold text-white mb-1">{stats.engagement}</div>
-              <div className="text-xs text-purple-400 flex items-center gap-1">
-                <Zap className="w-3 h-3" />
-                High interaction rate
-              </div>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 hover:border-zinc-700 transition">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-gray-400 text-sm font-medium">Top Emotion</div>
+              <Sparkles className="w-5 h-5 text-yellow-500" />
             </div>
-          </div>
-
-          <div className="group relative bg-gradient-to-br from-zinc-900/80 to-black/80 backdrop-blur-sm border border-white/5 rounded-2xl p-6 hover:border-yellow-500/30 transition-all duration-300 overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-500/5 rounded-full blur-3xl group-hover:bg-yellow-500/10 transition-all duration-300"></div>
-            <div className="relative">
-              <div className="flex items-center justify-between mb-3">
-                <div className="text-gray-400 text-sm font-medium">Top Emotion</div>
-                <div className="p-2 bg-yellow-500/10 rounded-lg">
-                  <Sparkles className="w-5 h-5 text-yellow-400" />
-                </div>
-              </div>
-              <div className="text-4xl font-bold text-white mb-1">{stats.topEmotion}</div>
-              <div className="text-xs text-gray-500">Most common mood</div>
-            </div>
+            <div className="text-3xl font-bold text-white">{stats.topEmotion}</div>
+            <div className="text-xs text-gray-500 mt-1">Most common mood</div>
           </div>
         </div>
 
-        <div className="relative bg-gradient-to-br from-zinc-900/60 to-black/60 backdrop-blur-sm border border-white/5 rounded-2xl p-8 overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-cyan-500"></div>
-          
-          <div className="flex items-center justify-between mb-8">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 mb-6">
+          <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="text-3xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent mb-2">
-                Your Timeline
-              </h2>
-              <p className="text-gray-500 flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-blue-400" />
-                AI-Powered Insights
-              </p>
+              <h2 className="text-2xl font-bold text-white mb-1">Your Timeline</h2>
+              <p className="text-gray-500 text-sm">AI-Powered Analysis</p>
             </div>
             <button
               onClick={fetchTweets}
               disabled={loading}
-              className="group flex items-center gap-2 px-5 py-2.5 bg-white/5 hover:bg-white/10 text-white rounded-full transition-all duration-300 font-medium border border-white/10 hover:border-white/20 disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-full transition font-medium border border-zinc-700"
             >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'}`} />
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               Refresh
             </button>
           </div>
 
           {useFallback && (
-            <div className="bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border border-yellow-500/20 rounded-xl p-4 mb-6 backdrop-blur-sm">
-              <p className="text-yellow-400 text-sm font-medium flex items-center gap-2">
+            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4 mb-6">
+              <p className="text-yellow-500 text-sm font-medium flex items-center gap-2">
                 <AlertCircle className="w-4 h-4" />
-                Showing sample data for demonstration
+                Showing sample data
               </p>
             </div>
           )}
 
           {loading && (
-            <div className="text-center py-20">
-              <div className="relative inline-block">
-                <Loader2 className="w-12 h-12 animate-spin text-blue-500 mx-auto mb-4" />
-                <div className="absolute inset-0 w-12 h-12 bg-blue-500/20 blur-xl mx-auto"></div>
-              </div>
-              <p className="text-gray-400 font-medium">Analyzing your tweets...</p>
+            <div className="text-center py-16">
+              <Loader2 className="w-10 h-10 animate-spin text-blue-500 mx-auto mb-4" />
+              <p className="text-gray-500">Loading tweets...</p>
             </div>
           )}
 
           {!loading && tweets.length === 0 && (
-            <div className="text-center py-20">
-              <div className="w-20 h-20 bg-gradient-to-br from-zinc-800 to-zinc-900 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Twitter className="w-10 h-10 text-gray-600" />
-              </div>
-              <p className="text-gray-500 text-lg">No tweets yet</p>
-              <p className="text-gray-600 text-sm mt-2">Start posting to see your timeline</p>
+            <div className="text-center py-16">
+              <Twitter className="w-16 h-16 text-gray-700 mx-auto mb-4" />
+              <p className="text-gray-500">No tweets yet</p>
             </div>
           )}
 
@@ -747,24 +693,21 @@ export default function TweetsDashboard() {
                 return (
                   <div
                     key={tweet.id}
-                    className="group relative bg-gradient-to-br from-black/40 to-zinc-900/40 backdrop-blur-sm border border-white/5 rounded-2xl p-6 hover:border-white/10 transition-all duration-300 overflow-hidden"
+                    className="bg-black border border-zinc-800 rounded-xl p-5 hover:border-zinc-700 transition"
                   >
-                    <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-blue-500/0 to-purple-500/0 group-hover:from-blue-500/5 group-hover:to-purple-500/5 transition-all duration-500 pointer-events-none"></div>
-                    
-                    <div className="relative flex items-start gap-4">
+                    <div className="flex items-start gap-3 mb-3">
                       {session.user?.image ? (
-                        <img src={session.user.image} alt="" className="w-12 h-12 rounded-full ring-2 ring-blue-500/20" />
+                        <img src={session.user.image} alt="" className="w-10 h-10 rounded-full" />
                       ) : (
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-zinc-800 to-zinc-900" />
+                        <div className="w-10 h-10 rounded-full bg-zinc-800" />
                       )}
-                      
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
                           <div className="font-bold text-white">{session.user?.name || "User"}</div>
                           <div className="text-gray-500 text-sm">
                             @{session.user?.email?.split('@')[0] || 'user'}
                           </div>
-                          <div className="text-gray-700 text-sm">·</div>
+                          <div className="text-gray-600 text-sm">·</div>
                           <div className="text-gray-500 text-sm">
                             {tweet.created_at
                               ? new Date(tweet.created_at).toLocaleDateString('en-US', {
@@ -774,30 +717,29 @@ export default function TweetsDashboard() {
                               : 'Now'}
                           </div>
                         </div>
+                        <p className="text-white text-[15px] leading-normal mb-3">{tweet.text}</p>
                         
-                        <p className="text-gray-200 text-[15px] leading-relaxed mb-4">{tweet.text}</p>
-                        
-                        <div className="flex items-center gap-8 mb-5 text-gray-500">
-                          <button className="flex items-center gap-2 hover:text-blue-400 transition-colors group/btn">
-                            <div className="group-hover/btn:bg-blue-500/10 rounded-full p-2 transition-colors">
+                        <div className="flex items-center gap-12 mb-4 text-gray-500">
+                          <button className="flex items-center gap-2 hover:text-blue-500 transition group">
+                            <div className="group-hover:bg-blue-500/10 rounded-full p-2 transition">
                               <MessageCircle className="w-[18px] h-[18px]" />
                             </div>
                             <span className="text-sm">{Math.floor(Math.random() * 8) + 1}</span>
                           </button>
-                          <button className="flex items-center gap-2 hover:text-green-400 transition-colors group/btn">
-                            <div className="group-hover/btn:bg-green-500/10 rounded-full p-2 transition-colors">
+                          <button className="flex items-center gap-2 hover:text-green-500 transition group">
+                            <div className="group-hover:bg-green-500/10 rounded-full p-2 transition">
                               <Repeat2 className="w-[18px] h-[18px]" />
                             </div>
                             <span className="text-sm">{Math.floor(Math.random() * 6) + 1}</span>
                           </button>
-                          <button className="flex items-center gap-2 hover:text-pink-400 transition-colors group/btn">
-                            <div className="group-hover/btn:bg-pink-500/10 rounded-full p-2 transition-colors">
+                          <button className="flex items-center gap-2 hover:text-pink-500 transition group">
+                            <div className="group-hover:bg-pink-500/10 rounded-full p-2 transition">
                               <Heart className="w-[18px] h-[18px]" />
                             </div>
                             <span className="text-sm">{Math.floor(Math.random() * 10) + 1}</span>
                           </button>
-                          <button className="flex items-center gap-2 hover:text-blue-400 transition-colors group/btn">
-                            <div className="group-hover/btn:bg-blue-500/10 rounded-full p-2 transition-colors">
+                          <button className="flex items-center gap-2 hover:text-blue-500 transition group">
+                            <div className="group-hover:bg-blue-500/10 rounded-full p-2 transition">
                               <BarChart3 className="w-[18px] h-[18px]" />
                             </div>
                             <span className="text-sm">{Math.floor(Math.random() * 50) + 10}</span>
@@ -808,66 +750,63 @@ export default function TweetsDashboard() {
                           <button
                             onClick={() => analyzeTweetWithGroq(tweet.id, tweet.text, 'emotion')}
                             disabled={tweetAnalysis?.analyzing}
-                            className="group/analyze flex items-center gap-2 px-4 py-2 text-xs bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-full transition-all duration-200 disabled:opacity-50 border border-blue-500/20 hover:border-blue-500/40 font-medium shadow-sm hover:shadow-blue-500/20"
+                            className="flex items-center gap-2 px-3 py-1.5 text-xs bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-full transition disabled:opacity-50 border border-blue-500/20 font-medium"
                           >
-                            <Sparkles className="w-3.5 h-3.5 group-hover/analyze:rotate-12 transition-transform" />
+                            <Sparkles className="w-3.5 h-3.5" />
                             Emotion
                           </button>
                           <button
                             onClick={() => analyzeTweetWithGroq(tweet.id, tweet.text, 'intention')}
                             disabled={tweetAnalysis?.analyzing}
-                            className="group/analyze flex items-center gap-2 px-4 py-2 text-xs bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 rounded-full transition-all duration-200 disabled:opacity-50 border border-purple-500/20 hover:border-purple-500/40 font-medium shadow-sm hover:shadow-purple-500/20"
+                            className="flex items-center gap-2 px-3 py-1.5 text-xs bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 rounded-full transition disabled:opacity-50 border border-purple-500/20 font-medium"
                           >
-                            <Target className="w-3.5 h-3.5 group-hover/analyze:scale-110 transition-transform" />
+                            <Target className="w-3.5 h-3.5" />
                             Intent
                           </button>
                           <button
                             onClick={() => analyzeTweetWithGroq(tweet.id, tweet.text, 'factual')}
                             disabled={tweetAnalysis?.analyzing}
-                            className="group/analyze flex items-center gap-2 px-4 py-2 text-xs bg-green-500/10 hover:bg-green-500/20 text-green-400 rounded-full transition-all duration-200 disabled:opacity-50 border border-green-500/20 hover:border-green-500/40 font-medium shadow-sm hover:shadow-green-500/20"
+                            className="flex items-center gap-2 px-3 py-1.5 text-xs bg-green-500/10 hover:bg-green-500/20 text-green-400 rounded-full transition disabled:opacity-50 border border-green-500/20 font-medium"
                           >
-                            <CheckCircle className="w-3.5 h-3.5 group-hover/analyze:rotate-12 transition-transform" />
+                            <CheckCircle className="w-3.5 h-3.5" />
                             Fact Check
                           </button>
                           <button
                             onClick={() => openChat(tweet.text)}
-                            className="group/analyze flex items-center gap-2 px-4 py-2 text-xs bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 rounded-full transition-all duration-200 border border-orange-500/20 hover:border-orange-500/40 font-medium shadow-sm hover:shadow-orange-500/20"
+                            className="flex items-center gap-2 px-3 py-1.5 text-xs bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 rounded-full transition border border-orange-500/20 font-medium"
                           >
-                            <MessageSquare className="w-3.5 h-3.5 group-hover/analyze:scale-110 transition-transform" />
+                            <MessageSquare className="w-3.5 h-3.5" />
                             Chat
                           </button>
                         </div>
 
                         {tweetAnalysis?.analyzing && (
-                          <div className="mt-5 bg-gradient-to-br from-zinc-900/80 to-black/80 backdrop-blur-sm border border-white/10 rounded-xl p-5">
+                          <div className="mt-4 bg-zinc-900 border border-zinc-800 rounded-xl p-4">
                             <div className="flex items-center gap-3">
-                              <div className="relative">
-                                <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
-                                <div className="absolute inset-0 w-5 h-5 bg-blue-500/20 blur-md"></div>
-                              </div>
-                              <span className="text-gray-300 text-sm font-medium">Analyzing tweet with AI...</span>
+                              <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
+                              <span className="text-gray-400 text-sm">Analyzing tweet...</span>
                             </div>
                           </div>
                         )}
 
                         {tweetAnalysis?.result && (
-                          <div className="mt-5 bg-gradient-to-br from-zinc-900/60 to-black/60 backdrop-blur-sm border border-white/10 rounded-xl p-5 shadow-lg">
-                            <div className="flex items-start gap-4">
-                              <div className="text-4xl">{tweetAnalysis.result.emotion}</div>
+                          <div className="mt-4 bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+                            <div className="flex items-start gap-3 mb-3">
+                              <div className="text-3xl">{tweetAnalysis.result.emotion}</div>
                               <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-3">
-                                  <h4 className="text-white font-semibold text-base">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <h4 className="text-white font-semibold">
                                     {tweetAnalysis.type === 'emotion' && 'Emotion Analysis'}
                                     {tweetAnalysis.type === 'intention' && 'Intent Analysis'}
                                     {tweetAnalysis.type === 'factual' && 'Fact Check'}
                                   </h4>
-                                  <span className="px-2.5 py-1 bg-blue-500/20 text-blue-300 text-xs rounded-full font-medium border border-blue-500/30">
+                                  <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 text-xs rounded-full">
                                     {Math.round(tweetAnalysis.result.confidence_level * 100)}% confident
                                   </span>
                                 </div>
 
                                 {tweetAnalysis.type === 'emotion' && tweetAnalysis.result.reasoningSections && (
-                                  <div className="space-y-2.5">
+                                  <div className="space-y-2">
                                     {tweetAnalysis.result.reasoningSections.map((section, idx) => (
                                       <p key={idx} className="text-gray-300 text-sm leading-relaxed">
                                         {section}
@@ -879,34 +818,34 @@ export default function TweetsDashboard() {
                                 {tweetAnalysis.type === 'intention' && tweetAnalysis.result.modified_tweet && (
                                   <div className="space-y-3">
                                     <p className="text-gray-300 text-sm">{tweetAnalysis.result.reasoning}</p>
-                                    <div className="bg-black/40 border border-white/10 rounded-lg p-4 backdrop-blur-sm">
-                                      <div className="text-xs text-gray-500 mb-2 font-medium">Suggested modification:</div>
-                                      <p className="text-white text-sm leading-relaxed">{tweetAnalysis.result.modified_tweet}</p>
+                                    <div className="bg-black border border-zinc-700 rounded-lg p-3">
+                                      <div className="text-xs text-gray-500 mb-2">Suggested modification:</div>
+                                      <p className="text-white text-sm">{tweetAnalysis.result.modified_tweet}</p>
                                     </div>
                                     <button
                                       onClick={() => openPostModal(tweetAnalysis.result?.modified_tweet)}
-                                      className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1.5 font-medium transition-colors"
+                                      className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
                                     >
-                                      <PenLine className="w-3.5 h-3.5" />
+                                      <PenLine className="w-3 h-3" />
                                       Use this version
                                     </button>
                                   </div>
                                 )}
 
                                 {tweetAnalysis.type === 'factual' && tweetAnalysis.result.facts && (
-                                  <div className="space-y-3">
+                                  <div className="space-y-2">
                                     <p className="text-gray-300 text-sm mb-3">{tweetAnalysis.result.reasoning}</p>
                                     {tweetAnalysis.result.facts.length > 0 ? (
-                                      <ul className="space-y-2.5">
+                                      <ul className="space-y-2">
                                         {tweetAnalysis.result.facts.map((fact, idx) => (
-                                          <li key={idx} className="flex items-start gap-2.5 text-sm text-gray-300 bg-green-500/5 border border-green-500/20 rounded-lg p-3">
-                                            <CheckCircle className="w-4 h-4 text-green-400 mt-0.5 flex-shrink-0" />
+                                          <li key={idx} className="flex items-start gap-2 text-sm text-gray-300">
+                                            <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
                                             <span>{fact}</span>
                                           </li>
                                         ))}
                                       </ul>
                                     ) : (
-                                      <p className="text-yellow-400 text-sm flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3">
+                                      <p className="text-yellow-500 text-sm flex items-center gap-2">
                                         <AlertCircle className="w-4 h-4" />
                                         No verifiable facts found in this tweet
                                       </p>
@@ -916,8 +855,8 @@ export default function TweetsDashboard() {
 
                                 {tweetAnalysis.result.sentiment && (
                                   <div className="mt-3 flex items-center gap-2">
-                                    <span className="text-xs text-gray-500 font-medium">Sentiment:</span>
-                                    <span className="px-2.5 py-1 bg-white/5 text-gray-300 text-xs rounded-full capitalize border border-white/10 font-medium">
+                                    <span className="text-xs text-gray-500">Sentiment:</span>
+                                    <span className="px-2 py-0.5 bg-zinc-800 text-gray-300 text-xs rounded-full capitalize">
                                       {tweetAnalysis.result.sentiment}
                                     </span>
                                   </div>
@@ -937,25 +876,22 @@ export default function TweetsDashboard() {
       </main>
 
       {postingState.isOpen && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div className="bg-gradient-to-br from-zinc-900/95 to-black/95 backdrop-blur-xl border border-white/10 rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
-            <div className="sticky top-0 bg-gradient-to-r from-zinc-900/95 to-black/95 backdrop-blur-xl border-b border-white/10 px-6 py-5 flex items-center justify-between">
-              <h3 className="text-2xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
-                Create Post
-              </h3>
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-zinc-900 border-b border-zinc-800 px-6 py-4 flex items-center justify-between">
+              <h3 className="text-xl font-bold text-white">Create Post</h3>
               <button
                 onClick={closePostModal}
-                className="p-2 hover:bg-white/10 rounded-full transition-all duration-200 group"
+                className="p-2 hover:bg-zinc-800 rounded-full transition"
               >
-                <X className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors" />
+                <X className="w-5 h-5 text-gray-400" />
               </button>
             </div>
 
-            <div className="p-6 space-y-5">
-              <div>
-                <label className="block text-sm font-semibold text-gray-300 mb-3 flex items-center gap-2">
-                  <Target className="w-4 h-4 text-purple-400" />
-                  Intent Modifier (optional)
+            <div className="p-6">
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-400 mb-2">
+                  Intent (optional)
                 </label>
                 <div className="flex gap-2">
                   <input
@@ -963,21 +899,21 @@ export default function TweetsDashboard() {
                     value={postingState.intentText}
                     onChange={(e) => setPostingState(prev => ({ ...prev, intentText: e.target.value }))}
                     placeholder="e.g., make it more professional, add humor, simplify..."
-                    className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500/50 focus:ring-2 focus:ring-purple-500/20 transition-all"
+                    className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
                   />
                   <button
                     onClick={applyIntent}
                     disabled={!postingState.intentText.trim() || postingState.applyingIntent}
-                    className="px-5 py-3 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 disabled:from-zinc-700 disabled:to-zinc-800 disabled:text-gray-500 text-white rounded-xl transition-all duration-200 font-semibold flex items-center gap-2 shadow-lg disabled:shadow-none shadow-purple-500/20"
+                    className="px-4 py-2 bg-purple-500 hover:bg-purple-600 disabled:bg-zinc-700 disabled:text-gray-500 text-white rounded-lg transition font-medium flex items-center gap-2"
                   >
                     {postingState.applyingIntent ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        Applying
+                        Applying...
                       </>
                     ) : (
                       <>
-                        <Zap className="w-4 h-4" />
+                        <Target className="w-4 h-4" />
                         Apply
                       </>
                     )}
@@ -985,40 +921,34 @@ export default function TweetsDashboard() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-300 mb-3 flex items-center gap-2">
-                  <PenLine className="w-4 h-4 text-blue-400" />
-                  Your Tweet
-                </label>
-                <textarea
-                  value={postingState.tweetText}
-                  onChange={(e) => setPostingState(prev => ({ ...prev, tweetText: e.target.value }))}
-                  placeholder="What's happening?"
-                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-4 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 min-h-[160px] resize-none transition-all"
-                />
-              </div>
+              <textarea
+                value={postingState.tweetText}
+                onChange={(e) => setPostingState(prev => ({ ...prev, tweetText: e.target.value }))}
+                placeholder="What's happening?"
+                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 min-h-[150px] resize-none"
+              />
 
-              <div className="flex items-center justify-between pt-4 border-t border-white/5">
-                <div className="flex items-center gap-3">
+              <div className="flex items-center justify-between mt-4">
+                <div className="flex items-center gap-2">
                   <button
                     onClick={toggleRecording}
-                    className={`p-3 rounded-xl transition-all duration-200 ${
+                    className={`p-2 rounded-full transition ${
                       postingState.isRecording
-                        ? 'bg-gradient-to-r from-red-500 to-red-600 shadow-lg shadow-red-500/30'
-                        : 'bg-white/5 hover:bg-white/10 border border-white/10'
+                        ? 'bg-red-500 hover:bg-red-600'
+                        : 'bg-zinc-800 hover:bg-zinc-700'
                     }`}
                   >
                     <Mic className={`w-5 h-5 ${postingState.isRecording ? 'text-white animate-pulse' : 'text-gray-400'}`} />
                   </button>
-                  <span className={`text-sm font-medium ${postingState.tweetText.length > 280 ? 'text-red-400' : 'text-gray-400'}`}>
+                  <span className="text-sm text-gray-400">
                     {postingState.tweetText.length}/280
                   </span>
                 </div>
 
                 <button
                   onClick={postTweet}
-                  disabled={!postingState.tweetText.trim() || postingState.posting || postingState.success || postingState.tweetText.length > 280}
-                  className="group px-8 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:from-zinc-700 disabled:to-zinc-800 disabled:text-gray-500 text-white rounded-full transition-all duration-200 font-bold flex items-center gap-2.5 shadow-lg disabled:shadow-none shadow-blue-500/30 hover:scale-105"
+                  disabled={!postingState.tweetText.trim() || postingState.posting || postingState.success}
+                  className="px-6 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-zinc-700 disabled:text-gray-500 text-white rounded-full transition font-bold flex items-center gap-2"
                 >
                   {postingState.posting ? (
                     <>
@@ -1032,7 +962,7 @@ export default function TweetsDashboard() {
                     </>
                   ) : (
                     <>
-                      <Send className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+                      <Send className="w-4 h-4" />
                       Post
                     </>
                   )}
@@ -1044,54 +974,38 @@ export default function TweetsDashboard() {
       )}
 
       {chatState.isOpen && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div className="bg-gradient-to-br from-zinc-900/95 to-black/95 backdrop-blur-xl border border-white/10 rounded-3xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl">
-            <div className="bg-gradient-to-r from-zinc-900/95 to-black/95 backdrop-blur-xl border-b border-white/10 px-6 py-5 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-orange-500/10 rounded-lg">
-                  <MessageSquare className="w-5 h-5 text-orange-400" />
-                </div>
-                <h3 className="text-2xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
-                  Chat about Tweet
-                </h3>
-              </div>
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-2xl w-full max-h-[90vh] flex flex-col">
+            <div className="bg-zinc-900 border-b border-zinc-800 px-6 py-4 flex items-center justify-between">
+              <h3 className="text-xl font-bold text-white">Chat about Tweet</h3>
               <button
                 onClick={closeChat}
-                className="p-2 hover:bg-white/10 rounded-full transition-all duration-200 group"
+                className="p-2 hover:bg-zinc-800 rounded-full transition"
               >
-                <X className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors" />
+                <X className="w-5 h-5 text-gray-400" />
               </button>
             </div>
 
-            <div className="flex-1 p-6 overflow-y-auto space-y-4">
-              <div className="bg-black/40 border border-white/10 rounded-xl p-4 backdrop-blur-sm">
-                <div className="text-xs text-gray-500 mb-2 font-medium">Original Tweet:</div>
-                <p className="text-gray-200 text-sm leading-relaxed">{activeChatTweet}</p>
+            <div className="flex-1 p-6 overflow-y-auto">
+              <div className="bg-zinc-800 border border-zinc-700 rounded-lg p-4 mb-4">
+                <p className="text-gray-300 text-sm">{activeChatTweet}</p>
               </div>
 
               {chatState.response && (
-                <div className="bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border border-blue-500/30 rounded-xl p-5 backdrop-blur-sm">
-                  <div className="flex items-start gap-3">
-                    <div className="p-2 bg-blue-500/20 rounded-lg flex-shrink-0">
-                      <Sparkles className="w-4 h-4 text-blue-300" />
-                    </div>
-                    <p className="text-blue-50 text-sm leading-relaxed">{chatState.response}</p>
-                  </div>
+                <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4 mb-4">
+                  <p className="text-blue-100 text-sm leading-relaxed">{chatState.response}</p>
                 </div>
               )}
 
               {chatState.loading && (
-                <div className="flex items-center gap-3 text-gray-400 bg-white/5 rounded-xl p-4">
-                  <div className="relative">
-                    <Loader2 className="w-5 h-5 animate-spin text-orange-400" />
-                    <div className="absolute inset-0 w-5 h-5 bg-orange-400/20 blur-md"></div>
-                  </div>
-                  <span className="text-sm font-medium">AI is thinking...</span>
+                <div className="flex items-center gap-3 text-gray-400">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span className="text-sm">Thinking...</span>
                 </div>
               )}
             </div>
 
-            <div className="border-t border-white/10 p-5">
+            <div className="border-t border-zinc-800 p-4">
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -1099,12 +1013,12 @@ export default function TweetsDashboard() {
                   onChange={(e) => setChatState(prev => ({ ...prev, query: e.target.value }))}
                   onKeyPress={(e) => e.key === 'Enter' && sendChatQuery()}
                   placeholder="Ask anything about this tweet..."
-                  className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-orange-500/50 focus:ring-2 focus:ring-orange-500/20 transition-all"
+                  className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
                 />
                 <button
                   onClick={sendChatQuery}
                   disabled={!chatState.query.trim() || chatState.loading}
-                  className="px-5 py-3 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:from-zinc-700 disabled:to-zinc-800 disabled:text-gray-500 text-white rounded-xl transition-all duration-200 font-semibold shadow-lg disabled:shadow-none shadow-orange-500/20 hover:scale-105"
+                  className="px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-zinc-700 disabled:text-gray-500 text-white rounded-lg transition font-medium"
                 >
                   <Send className="w-4 h-4" />
                 </button>
