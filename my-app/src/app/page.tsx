@@ -460,34 +460,24 @@ export default function TweetsDashboard() {
        
        //sisisisnisn
        
-       
-        const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${GROQ_API_KEY}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            model: "llama-3.1-70b-versatile",
-            messages: [
-              {
-                role: "system",
-                content: systemPrompt
-              },
-              {
-                role: "user",
-                content: `Analyze this tweet: "${text}"`
-              }
-            ],
-            temperature: 0.7,
-            max_tokens: 600,
-            response_format: { type: "json_object" }
-          })
-        });
+       const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+  method: "POST",
+  headers: {
+    "Authorization": `Bearer ${GROQ_API_KEY}`,
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({
+    model: "llama-3.1-70b-versatile",
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: `Analyze this tweet: "${text}"` }
+    ],
+    temperature: 0.7,
+    max_tokens: 600,
+    response_format: { type: "json_object" }
+  })
+});
 
-        if (!response.ok) {
-          throw new Error("Groq API request failed");
-        }
 
         const data = await response.json();
         const content = data.choices[0]?.message?.content || "{}";
