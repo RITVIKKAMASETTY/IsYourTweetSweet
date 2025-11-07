@@ -486,41 +486,86 @@ export default function TweetsDashboard() {
     });
   };
 
-  const postTweet = async () => {
-    if (!postingState.tweetText.trim()) return;
+  // const postTweet = async () => {
+  //   if (!postingState.tweetText.trim()) return;
     
-    setPostingState(prev => ({ ...prev, posting: true }));
+  //   setPostingState(prev => ({ ...prev, posting: true }));
     
-    try {
-      // Twitter API v2 POST /2/tweets endpoint
-      const res = await fetch("/api/twitter/tweets", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          text: postingState.tweetText
-        })
-      });
+  //   try {
+  //     // Twitter API v2 POST /2/tweets endpoint
+  //     const res = await fetch("/api/twitter/tweets", {
+  //       method: "POST",
+  //       headers: {
+  //         "Content-Type": "application/json"
+  //       },
+  //       body: JSON.stringify({
+  //         text: postingState.tweetText
+  //       })
+  //     });
 
-      const data = await res.json();
+  //     const data = await res.json();
 
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to post tweet");
-      }
+  //     if (!res.ok) {
+  //       throw new Error(data.error || "Failed to post tweet");
+  //     }
 
-      setPostingState(prev => ({ ...prev, posting: false, success: true }));
+  //     setPostingState(prev => ({ ...prev, posting: false, success: true }));
       
-      setTimeout(() => {
-        closePostModal();
-        fetchTweets();
-      }, 1500);
-    } catch (err) {
-      console.error("Post error:", err);
-      setError(err instanceof Error ? err.message : "Failed to post tweet");
-      setPostingState(prev => ({ ...prev, posting: false }));
+  //     setTimeout(() => {
+  //       closePostModal();
+  //       fetchTweets();
+  //     }, 1500);
+  //   } catch (err) {
+  //     console.error("Post error:", err);
+  //     setError(err instanceof Error ? err.message : "Failed to post tweet");
+  //     setPostingState(prev => ({ ...prev, posting: false }));
+  //   }
+  // };
+const postTweet = async () => {
+  // Prevent posting empty tweet
+  if (!postingState.tweetText.trim()) return;
+
+  setPostingState(prev => ({ ...prev, posting: true }));
+  setError(null);
+
+  try {
+    // POST to your Next.js API route → /api/twitter/tweets
+    const res = await fetch("/api/twitter/tweets", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        text: postingState.tweetText.trim(),
+      }),
+    });
+
+    // Try parsing the response
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      // Show detailed error if available
+      const message =
+        data?.error ||
+        data?.title ||
+        data?.detail ||
+        `Failed to post tweet (${res.status})`;
+      throw new Error(message);
     }
-  };
+
+    // If success — show confirmation and refresh tweets
+    setPostingState(prev => ({ ...prev, posting: false, success: true }));
+
+    setTimeout(() => {
+      closePostModal();
+      fetchTweets(); // Refresh user's tweet list
+    }, 1500);
+  } catch (err) {
+    console.error("Post error:", err);
+    setError(err instanceof Error ? err.message : "Failed to post tweet");
+    setPostingState(prev => ({ ...prev, posting: false }));
+  }
+};
 
   useEffect(() => {
     if (session) {
