@@ -1599,6 +1599,29 @@ export default function TweetsDashboard() {
         </div>
       </header>
 
+{session && (
+  <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 mb-6">
+    <div className="text-blue-400 text-sm">
+      <div className="font-bold mb-2">Debug Information:</div>
+      <div>Twitter ID: {session.user?.twitterId || 'Not set'}</div>
+      <div>Has Access Token: {session.user?.accessToken ? 'Yes' : 'No'}</div>
+      <div>User Name: {session.user?.name || 'Not set'}</div>
+      <div className="mt-2">
+        <button 
+          onClick={async () => {
+            const response = await fetch('/api/debug/auth');
+            const data = await response.json();
+            console.log('Debug data:', data);
+            alert('Check console for debug data');
+          }}
+          className="px-3 py-1 bg-blue-500 text-white rounded text-xs"
+        >
+          Check Database
+        </button>
+      </div>
+    </div>
+  </div>
+)}
       <main className="max-w-7xl mx-auto px-4 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 hover:border-zinc-700 transition">

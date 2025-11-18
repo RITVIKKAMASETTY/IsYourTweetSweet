@@ -295,45 +295,6 @@ async function getPrisma() {
   return prisma;
 }
 
-async function refreshAccessToken(token: JWT): Promise<JWT> {
-  try {
-    const url = "https://api.twitter.com/2/oauth2/token";
-    const body = new URLSearchParams({
-      grant_type: "refresh_token",
-      refresh_token: token.refreshToken as string,
-      client_id: process.env.TWITTER_CLIENT_ID!,
-    });
-
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body,
-    });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      console.error("[auth] Token refresh failed", res.status, data);
-      throw data;
-    }
-
-    return {
-      ...token,
-      accessToken: data.access_token,
-      accessTokenExpires: Date.now() + (data.expires_in ?? 7200) * 1000,
-      refreshToken: data.refresh_token ?? token.refreshToken,
-    };
-  } catch (err) {
-    console.error("[auth] refreshAccessToken error:", err);
-    return {
-      ...token,
-      error: "RefreshAccessTokenError",
-    };
-  }
-}
-
 export const authOptions: NextAuthOptions = {
   providers: [
     TwitterProvider({
@@ -356,76 +317,84 @@ export const authOptions: NextAuthOptions = {
 
   callbacks: {
     async jwt({ token, account, profile }) {
-      console.log("JWT callback - Profile:", profile);
+      console.log("🔐 JWT Callback - Profile received:", profile);
       
       // Initial sign in
       if (account && profile) {
+        console.log("🆕 New sign-in detected");
+        
         token.accessToken = account.access_token;
         token.refreshToken = account.refresh_token;
         token.accessTokenExpires = account.expires_at ? account.expires_at * 1000 : Date.now() + 7200 * 1000;
         token.twitterId = (profile as any).data?.id;
 
-        console.log("New user signed in:", {
+        console.log("📝 User data:", {
           twitterId: token.twitterId,
           name: (profile as any).data?.name,
+          image: (profile as any).data?.profile_image_url,
           hasAccessToken: !!token.accessToken
         });
 
-        // Save or update user in DB using dynamic import
+        // Save or update user in DB
         try {
           const prisma = await getPrisma();
+          console.log("🗄️ Prisma client obtained");
           
           if (token.twitterId) {
-            await prisma.user.upsert({
+            const userData = {
+              twitterId: token.twitterId,
+              accessToken: token.accessToken,
+              refreshToken: token.refreshToken,
+              name: (profile as any).data?.name || "Unknown",
+              image: (profile as any).data?.profile_image_url || "",
+            };
+
+            console.log("💾 Attempting to save user:", userData);
+
+            const dbUser = await prisma.user.upsert({
               where: { twitterId: token.twitterId },
-              update: {
-                accessToken: token.accessToken,
-                refreshToken: token.refreshToken,
-                name: (profile as any).data?.name ?? "",
-                image: (profile as any).data?.profile_image_url ?? "",
-              },
-              create: {
-                twitterId: token.twitterId,
-                accessToken: token.accessToken,
-                refreshToken: token.refreshToken,
-                name: (profile as any).data?.name ?? "",
-                image: (profile as any).data?.profile_image_url ?? "",
-              },
+              update: userData,
+              create: userData,
             });
-            console.log("User saved to database:", token.twitterId);
+
+            console.log("✅ User saved to database:", dbUser);
+          } else {
+            console.log("❌ No twitterId found in profile");
           }
         } catch (error) {
-          console.error("Failed to save user to database:", error);
+          console.error("💥 Failed to save user to database:", error);
+          // Don't throw - we want auth to succeed even if DB fails
         }
 
         return token;
       }
 
-      // Return previous token if the access token has not expired yet
+      // Return previous token if still valid
       if (Date.now() < (token.accessTokenExpires as number)) {
         return token;
       }
 
-      // Access token has expired, try to update it
-      return refreshAccessToken(token);
+      // Token refresh logic would go here
+      return token;
     },
 
     async session({ session, token }) {
-      console.log("Session callback - Token:", token);
+      console.log("🔗 Session Callback - Building session");
       
       session.user = session.user ?? {};
       
       // Send properties to the client
-      session.user.accessToken = token.accessToken as string | undefined;
-      session.user.refreshToken = token.refreshToken as string | undefined;
-      session.user.twitterId = token.twitterId as string | undefined;
-      session.user.accessTokenExpires = token.accessTokenExpires as number | undefined;
+      session.user.accessToken = token.accessToken as string;
+      session.user.refreshToken = token.refreshToken as string;
+      session.user.twitterId = token.twitterId as string;
+      session.user.accessTokenExpires = token.accessTokenExpires as number;
 
-      if (token.error) {
-        session.error = token.error as string;
-      }
+      console.log("🎯 Final session data:", {
+        twitterId: session.user.twitterId,
+        name: session.user.name,
+        hasAccessToken: !!session.user.accessToken
+      });
 
-      console.log("Final session:", session);
       return session;
     },
   },
