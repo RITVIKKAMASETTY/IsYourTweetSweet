@@ -6,12 +6,13 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
+// Make sure this is PostgreSQL, not SQLite
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "postgresql"  // ← This should be postgresql, not sqlite
   url      = env("DATABASE_URL")
 }
 
