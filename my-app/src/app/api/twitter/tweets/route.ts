@@ -1,3 +1,42 @@
+// // // // // src/app/api/twitter/tweets/route.ts
+// // // // import { NextResponse } from "next/server";
+// // // // import { getServerSession } from "next-auth/next";
+// // // // import { authOptions } from "@/lib/auth";
+
+// // // // export async function GET(request: Request) {
+// // // //   const session = await getServerSession(authOptions);
+
+// // // //   if (!session?.user?.accessToken || !session?.user?.twitterId) {
+// // // //     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+// // // //   }
+
+// // // //   const accessToken = session.user.accessToken as string;
+// // // //   const userId = session.user.twitterId as string;
+
+// // // //   try {
+// // // //     const url = `https://api.twitter.com/2/users/${userId}/tweets?max_results=50&tweet.fields=created_at,text,author_id`;
+// // // //     const r = await fetch(url, {
+// // // //       headers: { Authorization: `Bearer ${accessToken}` },
+// // // //     });
+
+// // // //     const text = await r.text();
+// // // //     if (!r.ok) {
+// // // //       // forward the Twitter error payload
+// // // //       try {
+// // // //         // if it's JSON, return structured JSON
+// // // //         const json = JSON.parse(text);
+// // // //         return NextResponse.json(json, { status: r.status });
+// // // //       } catch {
+// // // //         return new NextResponse(text || JSON.stringify({ error: "Twitter API error" }), { status: r.status });
+// // // //       }
+// // // //     }
+
+// // // //     return new NextResponse(text, { status: 200, headers: { "Content-Type": "application/json" } });
+// // // //   } catch (err: unknown) {
+// // // //     const detail = err instanceof Error ? err.message : String(err);
+// // // //     return NextResponse.json({ error: "Server error", detail }, { status: 500 });
+// // // //   }
+// // // // }
 // // // // src/app/api/twitter/tweets/route.ts
 // // // import { NextResponse } from "next/server";
 // // // import { getServerSession } from "next-auth/next";
@@ -21,9 +60,7 @@
 
 // // //     const text = await r.text();
 // // //     if (!r.ok) {
-// // //       // forward the Twitter error payload
 // // //       try {
-// // //         // if it's JSON, return structured JSON
 // // //         const json = JSON.parse(text);
 // // //         return NextResponse.json(json, { status: r.status });
 // // //       } catch {
@@ -37,10 +74,116 @@
 // // //     return NextResponse.json({ error: "Server error", detail }, { status: 500 });
 // // //   }
 // // // }
+
+// // // export async function POST(request: Request) {
+// // //   const session = await getServerSession(authOptions);
+
+// // //   if (!session?.user?.accessToken) {
+// // //     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+// // //   }
+
+// // //   const accessToken = session.user.accessToken as string;
+
+// // //   try {
+// // //     // Parse the request body
+// // //     const body = await request.json();
+// // //     const { text } = body;
+
+// // //     if (!text || typeof text !== 'string' || text.trim().length === 0) {
+// // //       return NextResponse.json({ error: "Tweet text is required" }, { status: 400 });
+// // //     }
+
+// // //     if (text.length > 280) {
+// // //       return NextResponse.json({ error: "Tweet is too long (max 280 characters)" }, { status: 400 });
+// // //     }
+
+// // //     // Post tweet to Twitter API
+// // //     const url = "https://api.twitter.com/2/tweets";
+// // //     const r = await fetch(url, {
+// // //       method: "POST",
+// // //       headers: {
+// // //         "Authorization": `Bearer ${accessToken}`,
+// // //         "Content-Type": "application/json",
+// // //       },
+// // //       body: JSON.stringify({ text: text.trim() }),
+// // //     });
+
+// // //     const responseText = await r.text();
+    
+// // //     if (!r.ok) {
+// // //       console.error("Twitter API error:", responseText);
+// // //       try {
+// // //         const json = JSON.parse(responseText);
+// // //         return NextResponse.json(
+// // //           { error: json.detail || json.title || "Failed to post tweet", ...json }, 
+// // //           { status: r.status }
+// // //         );
+// // //       } catch {
+// // //         return NextResponse.json(
+// // //           { error: "Failed to post tweet", detail: responseText }, 
+// // //           { status: r.status }
+// // //         );
+// // //       }
+// // //     }
+
+// // //     // Parse successful response
+// // //     const data = JSON.parse(responseText);
+// // //     return NextResponse.json({ 
+// // //       success: true, 
+// // //       data,
+// // //       message: "Tweet posted successfully" 
+// // //     }, { status: 201 });
+
+// // //   } catch (err: unknown) {
+// // //     console.error("POST /api/twitter/tweets error:", err);
+// // //     const detail = err instanceof Error ? err.message : String(err);
+// // //     return NextResponse.json({ 
+// // //       error: "Failed to post tweet", 
+// // //       detail 
+// // //     }, { status: 500 });
+// // //   }
+// // // }
 // // // src/app/api/twitter/tweets/route.ts
 // // import { NextResponse } from "next/server";
 // // import { getServerSession } from "next-auth/next";
 // // import { authOptions } from "@/lib/auth";
+// // import { prisma } from "@/lib/prisma";
+
+// // // Helper function to load initial tweets (first time or when DB is empty)
+// // async function loadInitialTweets(userId: string, accessToken: string, dbUserId: string) {
+// //   const url = `https://api.twitter.com/2/users/${userId}/tweets?max_results=100&tweet.fields=created_at,text,author_id`;
+// //   const r = await fetch(url, {
+// //     headers: { Authorization: `Bearer ${accessToken}` },
+// //   });
+
+// //   if (!r.ok) {
+// //     throw new Error("Failed to fetch tweets from Twitter");
+// //   }
+
+// //   const data = await r.json();
+// //   const tweets = data?.data || [];
+
+// //   // Bulk insert tweets
+// //   for (const tweet of tweets) {
+// //     await prisma.tweet.upsert({
+// //       where: { tweetId: tweet.id },
+// //       update: {
+// //         text: tweet.text,
+// //         createdAt: new Date(tweet.created_at),
+// //         authorId: tweet.author_id,
+// //       },
+// //       create: {
+// //         tweetId: tweet.id,
+// //         text: tweet.text,
+// //         createdAt: new Date(tweet.created_at),
+// //         authorId: tweet.author_id,
+// //         ownerId: dbUserId,
+// //       },
+// //     });
+// //   }
+
+// //   return tweets.length;
+// // }
 
 // // export async function GET(request: Request) {
 // //   const session = await getServerSession(authOptions);
@@ -53,6 +196,7 @@
 // //   const userId = session.user.twitterId as string;
 
 // //   try {
+// //     // Fetch tweets from Twitter API
 // //     const url = `https://api.twitter.com/2/users/${userId}/tweets?max_results=50&tweet.fields=created_at,text,author_id`;
 // //     const r = await fetch(url, {
 // //       headers: { Authorization: `Bearer ${accessToken}` },
@@ -68,8 +212,104 @@
 // //       }
 // //     }
 
-// //     return new NextResponse(text, { status: 200, headers: { "Content-Type": "application/json" } });
+// //     const data = JSON.parse(text);
+// //     const fetchedTweets = data?.data || [];
+
+// //     // Ensure user exists in database
+// //     await prisma.user.upsert({
+// //       where: { twitterId: userId },
+// //       update: {
+// //         name: session.user.name,
+// //         image: session.user.image,
+// //         accessToken: accessToken,
+// //       },
+// //       create: {
+// //         twitterId: userId,
+// //         name: session.user.name,
+// //         image: session.user.image,
+// //         accessToken: accessToken,
+// //       },
+// //     });
+
+// //     // Get user from database
+// //     const dbUser = await prisma.user.findUnique({
+// //       where: { twitterId: userId },
+// //     });
+
+// //     if (!dbUser) {
+// //       throw new Error("Failed to create/find user");
+// //     }
+
+// //     // Sync tweets with database
+// //     const fetchedTweetIds = new Set(fetchedTweets.map((t: any) => t.id));
+
+// //     // Get existing tweets from database
+// //     const existingTweets = await prisma.tweet.findMany({
+// //       where: { ownerId: dbUser.id },
+// //     });
+
+// //     const existingTweetIds = new Set(existingTweets.map(t => t.tweetId));
+
+// //     // Find tweets to delete (in DB but not in fetched)
+// //     const tweetsToDelete = existingTweets
+// //       .filter(t => !fetchedTweetIds.has(t.tweetId))
+// //       .map(t => t.tweetId);
+
+// //     // Delete removed tweets
+// //     if (tweetsToDelete.length > 0) {
+// //       await prisma.tweet.deleteMany({
+// //         where: {
+// //           tweetId: { in: tweetsToDelete },
+// //           ownerId: dbUser.id,
+// //         },
+// //       });
+// //       console.log(`Deleted ${tweetsToDelete.length} tweets`);
+// //     }
+
+// //     // Upsert fetched tweets
+// //     for (const tweet of fetchedTweets) {
+// //       await prisma.tweet.upsert({
+// //         where: { tweetId: tweet.id },
+// //         update: {
+// //           text: tweet.text,
+// //           createdAt: new Date(tweet.created_at),
+// //           authorId: tweet.author_id,
+// //         },
+// //         create: {
+// //           tweetId: tweet.id,
+// //           text: tweet.text,
+// //           createdAt: new Date(tweet.created_at),
+// //           authorId: tweet.author_id,
+// //           ownerId: dbUser.id,
+// //         },
+// //       });
+// //     }
+
+// //     // Fetch all tweets from database for this user
+// //     const allTweets = await prisma.tweet.findMany({
+// //       where: { ownerId: dbUser.id },
+// //       orderBy: { createdAt: 'desc' },
+// //     });
+
+// //     // Format tweets to match Twitter API response
+// //     const formattedTweets = allTweets.map(tweet => ({
+// //       id: tweet.tweetId,
+// //       text: tweet.text,
+// //       created_at: tweet.createdAt.toISOString(),
+// //       author_id: tweet.authorId,
+// //     }));
+
+// //     return NextResponse.json({
+// //       data: formattedTweets,
+// //       meta: {
+// //         result_count: formattedTweets.length,
+// //         synced_from_db: true,
+// //         deleted_count: tweetsToDelete.length,
+// //       }
+// //     }, { status: 200 });
+
 // //   } catch (err: unknown) {
+// //     console.error("GET /api/twitter/tweets error:", err);
 // //     const detail = err instanceof Error ? err.message : String(err);
 // //     return NextResponse.json({ error: "Server error", detail }, { status: 500 });
 // //   }
@@ -78,14 +318,14 @@
 // // export async function POST(request: Request) {
 // //   const session = await getServerSession(authOptions);
 
-// //   if (!session?.user?.accessToken) {
+// //   if (!session?.user?.accessToken || !session?.user?.twitterId) {
 // //     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 // //   }
 
 // //   const accessToken = session.user.accessToken as string;
+// //   const userId = session.user.twitterId as string;
 
 // //   try {
-// //     // Parse the request body
 // //     const body = await request.json();
 // //     const { text } = body;
 
@@ -128,9 +368,29 @@
 
 // //     // Parse successful response
 // //     const data = JSON.parse(responseText);
+// //     const newTweet = data.data;
+
+// //     // Get user from database
+// //     const dbUser = await prisma.user.findUnique({
+// //       where: { twitterId: userId },
+// //     });
+
+// //     if (dbUser) {
+// //       // Save new tweet to database
+// //       await prisma.tweet.create({
+// //         data: {
+// //           tweetId: newTweet.id,
+// //           text: newTweet.text,
+// //           createdAt: new Date(),
+// //           authorId: userId,
+// //           ownerId: dbUser.id,
+// //         },
+// //       });
+// //     }
+
 // //     return NextResponse.json({ 
 // //       success: true, 
-// //       data,
+// //       data: newTweet,
 // //       message: "Tweet posted successfully" 
 // //     }, { status: 201 });
 
@@ -147,42 +407,11 @@
 // import { NextResponse } from "next/server";
 // import { getServerSession } from "next-auth/next";
 // import { authOptions } from "@/lib/auth";
-// import { prisma } from "@/lib/prisma";
 
-// // Helper function to load initial tweets (first time or when DB is empty)
-// async function loadInitialTweets(userId: string, accessToken: string, dbUserId: string) {
-//   const url = `https://api.twitter.com/2/users/${userId}/tweets?max_results=100&tweet.fields=created_at,text,author_id`;
-//   const r = await fetch(url, {
-//     headers: { Authorization: `Bearer ${accessToken}` },
-//   });
-
-//   if (!r.ok) {
-//     throw new Error("Failed to fetch tweets from Twitter");
-//   }
-
-//   const data = await r.json();
-//   const tweets = data?.data || [];
-
-//   // Bulk insert tweets
-//   for (const tweet of tweets) {
-//     await prisma.tweet.upsert({
-//       where: { tweetId: tweet.id },
-//       update: {
-//         text: tweet.text,
-//         createdAt: new Date(tweet.created_at),
-//         authorId: tweet.author_id,
-//       },
-//       create: {
-//         tweetId: tweet.id,
-//         text: tweet.text,
-//         createdAt: new Date(tweet.created_at),
-//         authorId: tweet.author_id,
-//         ownerId: dbUserId,
-//       },
-//     });
-//   }
-
-//   return tweets.length;
+// // Helper function to get Prisma client with dynamic import
+// async function getPrisma() {
+//   const { prisma } = await import("@/lib/prisma");
+//   return prisma;
 // }
 
 // export async function GET(request: Request) {
@@ -196,7 +425,7 @@
 //   const userId = session.user.twitterId as string;
 
 //   try {
-//     // Fetch tweets from Twitter API
+//     // Fetch tweets from Twitter API first
 //     const url = `https://api.twitter.com/2/users/${userId}/tweets?max_results=50&tweet.fields=created_at,text,author_id`;
 //     const r = await fetch(url, {
 //       headers: { Authorization: `Bearer ${accessToken}` },
@@ -214,6 +443,9 @@
 
 //     const data = JSON.parse(text);
 //     const fetchedTweets = data?.data || [];
+
+//     // Get Prisma client dynamically
+//     const prisma = await getPrisma();
 
 //     // Ensure user exists in database
 //     await prisma.user.upsert({
@@ -240,22 +472,19 @@
 //       throw new Error("Failed to create/find user");
 //     }
 
-//     // Sync tweets with database
+//     // Rest of your database logic remains the same...
 //     const fetchedTweetIds = new Set(fetchedTweets.map((t: any) => t.id));
 
-//     // Get existing tweets from database
 //     const existingTweets = await prisma.tweet.findMany({
 //       where: { ownerId: dbUser.id },
 //     });
 
 //     const existingTweetIds = new Set(existingTweets.map(t => t.tweetId));
 
-//     // Find tweets to delete (in DB but not in fetched)
 //     const tweetsToDelete = existingTweets
 //       .filter(t => !fetchedTweetIds.has(t.tweetId))
 //       .map(t => t.tweetId);
 
-//     // Delete removed tweets
 //     if (tweetsToDelete.length > 0) {
 //       await prisma.tweet.deleteMany({
 //         where: {
@@ -266,7 +495,6 @@
 //       console.log(`Deleted ${tweetsToDelete.length} tweets`);
 //     }
 
-//     // Upsert fetched tweets
 //     for (const tweet of fetchedTweets) {
 //       await prisma.tweet.upsert({
 //         where: { tweetId: tweet.id },
@@ -285,13 +513,11 @@
 //       });
 //     }
 
-//     // Fetch all tweets from database for this user
 //     const allTweets = await prisma.tweet.findMany({
 //       where: { ownerId: dbUser.id },
 //       orderBy: { createdAt: 'desc' },
 //     });
 
-//     // Format tweets to match Twitter API response
 //     const formattedTweets = allTweets.map(tweet => ({
 //       id: tweet.tweetId,
 //       text: tweet.text,
@@ -366,17 +592,17 @@
 //       }
 //     }
 
-//     // Parse successful response
 //     const data = JSON.parse(responseText);
 //     const newTweet = data.data;
 
-//     // Get user from database
+//     // Get Prisma client dynamically
+//     const prisma = await getPrisma();
+
 //     const dbUser = await prisma.user.findUnique({
 //       where: { twitterId: userId },
 //     });
 
 //     if (dbUser) {
-//       // Save new tweet to database
 //       await prisma.tweet.create({
 //         data: {
 //           tweetId: newTweet.id,
@@ -403,7 +629,6 @@
 //     }, { status: 500 });
 //   }
 // }
-// src/app/api/twitter/tweets/route.ts
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
@@ -415,14 +640,20 @@ async function getPrisma() {
 }
 
 export async function GET(request: Request) {
+  console.log("GET /api/twitter/tweets - Starting request");
+  
   const session = await getServerSession(authOptions);
+  console.log("Session data:", session);
 
   if (!session?.user?.accessToken || !session?.user?.twitterId) {
+    console.log("Not authenticated - missing accessToken or twitterId");
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
   const accessToken = session.user.accessToken as string;
   const userId = session.user.twitterId as string;
+
+  console.log("Fetching tweets for user:", userId);
 
   try {
     // Fetch tweets from Twitter API first
@@ -432,7 +663,10 @@ export async function GET(request: Request) {
     });
 
     const text = await r.text();
+    console.log("Twitter API response status:", r.status);
+    
     if (!r.ok) {
+      console.error("Twitter API error:", text);
       try {
         const json = JSON.parse(text);
         return NextResponse.json(json, { status: r.status });
@@ -443,12 +677,13 @@ export async function GET(request: Request) {
 
     const data = JSON.parse(text);
     const fetchedTweets = data?.data || [];
+    console.log(`Fetched ${fetchedTweets.length} tweets from Twitter API`);
 
     // Get Prisma client dynamically
     const prisma = await getPrisma();
 
     // Ensure user exists in database
-    await prisma.user.upsert({
+    const dbUser = await prisma.user.upsert({
       where: { twitterId: userId },
       update: {
         name: session.user.name,
@@ -463,21 +698,20 @@ export async function GET(request: Request) {
       },
     });
 
-    // Get user from database
-    const dbUser = await prisma.user.findUnique({
-      where: { twitterId: userId },
-    });
+    console.log("Database user:", dbUser);
 
     if (!dbUser) {
       throw new Error("Failed to create/find user");
     }
 
-    // Rest of your database logic remains the same...
+    // Rest of your database logic...
     const fetchedTweetIds = new Set(fetchedTweets.map((t: any) => t.id));
 
     const existingTweets = await prisma.tweet.findMany({
       where: { ownerId: dbUser.id },
     });
+
+    console.log(`Found ${existingTweets.length} existing tweets in database`);
 
     const existingTweetIds = new Set(existingTweets.map(t => t.tweetId));
 
@@ -495,6 +729,8 @@ export async function GET(request: Request) {
       console.log(`Deleted ${tweetsToDelete.length} tweets`);
     }
 
+    // Upsert fetched tweets
+    let upsertedCount = 0;
     for (const tweet of fetchedTweets) {
       await prisma.tweet.upsert({
         where: { tweetId: tweet.id },
@@ -511,12 +747,17 @@ export async function GET(request: Request) {
           ownerId: dbUser.id,
         },
       });
+      upsertedCount++;
     }
+    console.log(`Upserted ${upsertedCount} tweets`);
 
+    // Fetch all tweets from database for this user
     const allTweets = await prisma.tweet.findMany({
       where: { ownerId: dbUser.id },
       orderBy: { createdAt: 'desc' },
     });
+
+    console.log(`Returning ${allTweets.length} tweets from database`);
 
     const formattedTweets = allTweets.map(tweet => ({
       id: tweet.tweetId,
@@ -531,6 +772,7 @@ export async function GET(request: Request) {
         result_count: formattedTweets.length,
         synced_from_db: true,
         deleted_count: tweetsToDelete.length,
+        upserted_count: upsertedCount,
       }
     }, { status: 200 });
 
@@ -538,94 +780,5 @@ export async function GET(request: Request) {
     console.error("GET /api/twitter/tweets error:", err);
     const detail = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: "Server error", detail }, { status: 500 });
-  }
-}
-
-export async function POST(request: Request) {
-  const session = await getServerSession(authOptions);
-
-  if (!session?.user?.accessToken || !session?.user?.twitterId) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-  }
-
-  const accessToken = session.user.accessToken as string;
-  const userId = session.user.twitterId as string;
-
-  try {
-    const body = await request.json();
-    const { text } = body;
-
-    if (!text || typeof text !== 'string' || text.trim().length === 0) {
-      return NextResponse.json({ error: "Tweet text is required" }, { status: 400 });
-    }
-
-    if (text.length > 280) {
-      return NextResponse.json({ error: "Tweet is too long (max 280 characters)" }, { status: 400 });
-    }
-
-    // Post tweet to Twitter API
-    const url = "https://api.twitter.com/2/tweets";
-    const r = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ text: text.trim() }),
-    });
-
-    const responseText = await r.text();
-    
-    if (!r.ok) {
-      console.error("Twitter API error:", responseText);
-      try {
-        const json = JSON.parse(responseText);
-        return NextResponse.json(
-          { error: json.detail || json.title || "Failed to post tweet", ...json }, 
-          { status: r.status }
-        );
-      } catch {
-        return NextResponse.json(
-          { error: "Failed to post tweet", detail: responseText }, 
-          { status: r.status }
-        );
-      }
-    }
-
-    const data = JSON.parse(responseText);
-    const newTweet = data.data;
-
-    // Get Prisma client dynamically
-    const prisma = await getPrisma();
-
-    const dbUser = await prisma.user.findUnique({
-      where: { twitterId: userId },
-    });
-
-    if (dbUser) {
-      await prisma.tweet.create({
-        data: {
-          tweetId: newTweet.id,
-          text: newTweet.text,
-          createdAt: new Date(),
-          authorId: userId,
-          ownerId: dbUser.id,
-        },
-      });
-    }
-
-    return NextResponse.json({ 
-      success: true, 
-      data: newTweet,
-      message: "Tweet posted successfully" 
-    }, { status: 201 });
-
-  } catch (err: unknown) {
-    console.error("POST /api/twitter/tweets error:", err);
-    const detail = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ 
-      error: "Failed to post tweet", 
-      detail 
-    }, { status: 500 });
   }
 }
