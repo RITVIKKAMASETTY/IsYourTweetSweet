@@ -3,16 +3,18 @@
 
 // Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
 generator client {
   provider = "prisma-client-js"
-  output   = "../src/generated/prisma"
-  engineType = "binary"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
+
 model User {
   id           String   @id @default(cuid())
   twitterId    String   @unique
@@ -20,16 +22,21 @@ model User {
   image        String?
   accessToken  String?
   refreshToken String?
-  tweets       Tweet[]
   createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  tweets Tweet[]
 }
 
 model Tweet {
-  id         String   @id @default(cuid())
-  tweetId    String   @unique
-  text       String
-  createdAt  DateTime
-  authorId   String
-  user       User     @relation(fields: [ownerId], references: [id])
-  ownerId    String
+  id        String   @id @default(cuid())
+  tweetId   String   @unique
+  text      String
+  createdAt DateTime
+  authorId  String
+  ownerId   String
+  
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  
+  @@map("tweets")
 }
